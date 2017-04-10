@@ -21,7 +21,9 @@ close all;  % Close all figures (except those of imtool.)
 % point of the window to later be extracted (i.e. if the burst appears to start with cells
 % firing towards the top/bottom of the cortical column, we take the average
 % between start of firing in top of burst and bottom of burst as a good
-% approximation of the center point of the burst).  
+% approximation of the center point of the burst).  When you have finished
+% selecting all bursts in a given figure, double click anywhere outside of all of
+% the subplots (trials).
 
 % 6. DON'T exit the program by any means other than selecting 'No' when the
 % progam checks up on you after however many 2x8 trial figures you want it to check up
