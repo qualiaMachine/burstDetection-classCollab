@@ -1,5 +1,6 @@
 function [burstLocC,burstLocR] = gatherBurstCoordinates(figDir,multiTrialFile)
 rasterPlot = openfig([figDir filesep multiTrialFile]);
+set(gcf,'units','normalized','outerposition',[0 0 1 1])
 % set(rasterPlot,'units','normalized','outerposition',[0 0 1 1])
 colormap default
 [burstLocC, burstLocR] = getpts(gcf);
