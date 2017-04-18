@@ -34,7 +34,7 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 	public static int     imageSize = 32; // Images are imageSize x imageSize.  The provided data is 128x128, but this can be resized by setting this value (or passing in an argument).
 										   // You might want to resize to 8x8, 16x16, 32x32, or 64x64; this can reduce your network size and speed up debugging runs.
 										   // ALL IMAGES IN A TRAINING RUN SHOULD BE THE *SAME* SIZE.
-	private static enum    Category { airplanes, butterfly, flower, grand_piano, starfish, watch };  // We'll hardwire these in, but more robust code would not do so.
+	private static enum    Category { positive, negative };  // We'll hardwire these in, but more robust code would not do so.
 
 	private static final Boolean    useRGB = true; // If true, FOUR units are used per pixel: red, green, blue, and grey.  If false, only ONE (the grey-scale value).
 	public static       int unitsPerPixel = (useRGB ? 4 : 1); // If using RGB, use red+blue+green+grey.  Otherwise just use the grey value.
@@ -117,76 +117,25 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 		loadDataset(testset, testsetDir);
 		System.out.println("The tuneset contains " + comma( testset.getSize()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
-		if (createExtraTrainingExamples) {
-			Dataset trainsetExtras = new Dataset();
-			int count_trainsetExtrasKept = 0;
-
-			start = System.currentTimeMillis();
-
-			// Flipping watches will mess up the digits on the watch faces, but that probably is ok.
-			for (Instance origTrainImage : trainset.getImages()) {
-				createMoreImagesFromThisImage(origTrainImage, 1.00, trainsetExtras);
-			}
-			if (perturbPerturbedImages) {
-				Dataset copyOfExtras = new Dataset(); // Need (I think) to copy before doing the FOR loop since will add to this!
-				for (Instance perturbedTrainImage : trainsetExtras.getImages()) {
-					copyOfExtras.add(perturbedTrainImage);
-				}
-				for (Instance perturbedTrainImage : copyOfExtras.getImages()) {
-					createMoreImagesFromThisImage(perturbedTrainImage,
-							((perturbedTrainImage.getProvenance() == Instance.HowCreated.FlippedLeftToRight ||
-									perturbedTrainImage.getProvenance() == Instance.HowCreated.FlippedTopToBottom)
-									? 3.33  // Increase the odds of perturbing flipped images a bit, since fewer of those.
-									: 0.66) // Aim to create about one more perturbed image per originally perturbed image.
-									/ (0.5 + 6.0 + shiftProbNumerator), trainsetExtras); // The 0.5 is for the chance of flip-flopping. The 6.0 is from rotations.
-				}
-			}
-
-			int[] countOfCreatedTrainingImages = new int[Category.values().length];
-			for (Instance createdTrainImage : trainsetExtras.getImages()) {
-				// Keep more of the less common categories?
-				double probOfKeeping = 1.0;
-
-				// Trainset counts: airplanes=127, butterfly=55, flower=114, piano=61, starfish=51, watch=146
-				if      ("airplanes".equals(  createdTrainImage.getLabel())) probOfKeeping = 0.66; // No flips, so fewer created.
-				else if ("butterfly".equals(  createdTrainImage.getLabel())) probOfKeeping = 1.00; // No top-bottom flips, so fewer created.
-				else if ("flower".equals(     createdTrainImage.getLabel())) probOfKeeping = 0.66; // No top-bottom flips, so fewer created.
-				else if ("grand_piano".equals(createdTrainImage.getLabel())) probOfKeeping = 1.00; // No flips, so fewer created.
-				else if ("starfish".equals(   createdTrainImage.getLabel())) probOfKeeping = 1.00; // No top-bottom flips, so fewer created.
-				else if ("watch".equals(      createdTrainImage.getLabel())) probOfKeeping = 0.50; // Already have a lot of these.
-
-				if (random() <= probOfKeeping) {
-					countOfCreatedTrainingImages[convertCategoryStringToEnum(createdTrainImage.getLabel()).ordinal()]++;
-					count_trainsetExtrasKept++;
-					trainset.add(createdTrainImage);//	println("The trainset NOW contains " + comma(trainset.getSize()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
-				}
-			}
-			for (Category cat : Category.values()) {
-				println(" Kept " + padLeft(comma(countOfCreatedTrainingImages[cat.ordinal()]), 5) + " 'tweaked' images of " + cat + ".");
-			}
-			println("Created a total of " + comma(trainsetExtras.getSize()) + " new training examples and kept " + comma(count_trainsetExtrasKept) + ".  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
-			println("The trainset NOW contains " + comma(trainset.getSize()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
-		}
-
-		createDribbleFile("results/"
-				+ modelToUse
-				+ "_extraExamples"
-				+ Boolean.toString(createExtraTrainingExamples)
-				+ "_inputDropoutRate"
-				+ truncate(  10 * inputDropoutRate,    0)
-				+ "_hiddenDropoutRate"
-				+ truncate(  10 * hiddenDropoutRate,    0)  // Feel free to decide what you wish to include, but aim to NOT print decimal points, since this is a file name
-				+ "_eta"          + truncate(1000 * eta, 0)
-				+ "_trainPercent" + truncate(100 * fractionOfTrainingToUse, 0)
-				+ "_numberHUs"    + numberOfHiddenUnits
-				+ ".txt");
+		// createDribbleFile("results/"
+		// 		+ modelToUse
+		// 		+ "_extraExamples"
+		// 		+ Boolean.toString(createExtraTrainingExamples)
+		// 		+ "_inputDropoutRate"
+		// 		+ truncate(  10 * inputDropoutRate,    0)
+		// 		+ "_hiddenDropoutRate"
+		// 		+ truncate(  10 * hiddenDropoutRate,    0)  // Feel free to decide what you wish to include, but aim to NOT print decimal points, since this is a file name
+		// 		+ "_eta"          + truncate(1000 * eta, 0)
+		// 		+ "_trainPercent" + truncate(100 * fractionOfTrainingToUse, 0)
+		// 		+ "_numberHUs"    + numberOfHiddenUnits
+		// 		+ ".txt");
 
 		// Now train a Deep ANN.  You might wish to first use your Lab 2 code here and see how one layer of HUs does.  Maybe even try your perceptron code.
 		// We are providing code that converts images to feature vectors.  Feel free to discard or modify.
 		start = System.currentTimeMillis();
 		trainANN(trainset, tuneset, testset);
 		println("\nTook " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + " to train.");
-		closeDribbleFile();
+		// closeDribbleFile();
 
 	}
 
@@ -207,15 +156,15 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 				int locationOfUnderscoreImage = name.indexOf("_image");
 
 				// Resize the image if requested.  Any resizing allowed, but should really be one of 8x8, 16x16, 32x32, or 64x64 (original data is 128x128).
-				if (imageSize != 128) {
+				// if (imageSize != 128) {
 					scaledBI = new BufferedImage(imageSize, imageSize, BufferedImage.TYPE_INT_RGB);
 					Graphics2D g = scaledBI.createGraphics();
 					g.drawImage(img, 0, 0, imageSize, imageSize, null);
 					g.dispose();
-				}
+				// }
 
 				//Instance instance = new Instance(scaledBI == null ? img : scaledBI, name.substring(0, locationOfUnderscoreImage));
-				Instance instance = new Instance(scaledBI == null ? img : scaledBI, name, name.substring(0, locationOfUnderscoreImage));
+				Instance instance = new Instance(scaledBI == null ? img : scaledBI, name, "positive");//name.substring(0, locationOfUnderscoreImage));
 
 				dataset.add(instance);
 			} catch (IOException e) {
@@ -231,12 +180,8 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 	 * @return An enum containing the appropriate type.
 	 */
 	private static Category convertCategoryStringToEnum(String name) {
-		if ("airplanes".equals(name))   return Category.airplanes; // Should have been the singular 'airplane' but we'll live with this minor error.
-		if ("butterfly".equals(name))   return Category.butterfly;
-		if ("flower".equals(name))      return Category.flower;
-		if ("grand_piano".equals(name)) return Category.grand_piano;
-		if ("starfish".equals(name))    return Category.starfish;
-		if ("watch".equals(name))       return Category.watch;
+		if ("positive".equals(name))   return Category.positive; // Should have been the singular 'airplane' but we'll live with this minor error.
+		if ("negative".equals(name))   return Category.negative;
 		throw new Error("Unknown category: " + name);
 	}
 
@@ -633,9 +578,9 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 		int  trainSetError = Integer.MAX_VALUE, best_trainSetError = Integer.MAX_VALUE, tuneSetError = Integer.MAX_VALUE, best_tuneSetError = Integer.MAX_VALUE, testSetError = Integer.MAX_VALUE, best_epoch = -1, testSetErrorsAtBestTune = Integer.MAX_VALUE;
 		long overallStart   = System.currentTimeMillis(), start = overallStart;
 		
-		int trainConfusion[][] = new int[6][6];
-		int tuneConfusion[][] = new int[6][6]; // Six categories, so 6x6 confusion matricies.
-	    int testConfusion[][] = new int[6][6];
+		int trainConfusion[][] = new int[2][2];
+		int tuneConfusion[][] = new int[2][2]; // Two categories, so 2x2 confusion matricies.
+	    int testConfusion[][] = new int[2][2];
 	    double allTrainErrors[] = new double[maxEpochs];
 	    double allTuneErrors[] = new double[maxEpochs];
 	    double allTestErrors[] = new double[maxEpochs];
@@ -863,7 +808,7 @@ class DeepNet {
 		this.layers.add(new ConvolutionLayer(14, 8, 16, 5,dropOut,normalizeKernelOutputByKernelSum));
 		this.layers.add(new PoolLayer(10, 16,2,dropOut));
 		this.layers.add(new FullyConnectedLayer(5, 5, 16, 128,dropOut,layers.get(3)));// **may want to test out varying #nodes in fully connected layer
-		this.layers.add(new FullyConnectedLayer(128, 1, 1, 6,dropOut,layers.get(4)));
+		this.layers.add(new FullyConnectedLayer(128, 1, 1, 2,dropOut,layers.get(4)));
 		this.doneTraining = false; // necessary for implementing dropout
 
 
@@ -900,11 +845,11 @@ class DeepNet {
 		this.feedforward(image);
 		
 		// Calculate error
-		// 6x1x1 array holding the activations of the last layer
+		// 2x1x1 array holding the activations of the last layer
 		Layer lastLayer = this.layers.get(this.layers.size() - 1);
 		double[][][] outputs = lastLayer.getOutputs();
-		double[][][] errors = new double[6][1][1];
-		for (int i = 0; i < 6; i++) {
+		double[][][] errors = new double[2][1][1];
+		for (int i = 0; i < 2; i++) {
 			double expected = (label == i) ? 1 : 0;
 			errors[i][0][0] = outputs[i][0][0] - expected;
 		}
@@ -929,10 +874,10 @@ class DeepNet {
 		Layer lastLayer = this.layers.get(this.layers.size() - 1);
 
 		// Calculate error
-		// 6x1x1 array holding the activations of the last layer
+		// 2x1x1 array holding the activations of the last layer
 		double[][][] outputs = lastLayer.getOutputs();
 		int maxIndex = 0;
-		for (int i = 1; i < 6; i++) {
+		for (int i = 1; i < 2; i++) {
 			if (outputs[i][0][0] > outputs[maxIndex][0][0]) {
 				maxIndex = i;
 			}
@@ -1424,7 +1369,7 @@ class FullyConnectedLayer implements Layer {
 	}
 }
 class OneLayer {
-	private final int numOutputClasses = 6;// just in case we want reduce output number for experimenting
+	private final int numOutputClasses = 2;// just in case we want reduce output number for experimenting
 	int numFeatures = Lab3_Endemann_Sescleifer_Wolfe.inputVectorSize - 1;
 	double[][] hiddenWeights = new double[Lab3_Endemann_Sescleifer_Wolfe.numberOfHiddenUnits][numFeatures];
 	double[][] outputWeights = new double[numOutputClasses][Lab3_Endemann_Sescleifer_Wolfe.numberOfHiddenUnits];
