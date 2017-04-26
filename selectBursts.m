@@ -37,7 +37,6 @@ fileCountCheckup = 1; % alter this to change how frequently you're asked to quit
 %% Animal ist to be processed
 disp('Verify animal list in selectBursts.m.  If correct, click continue. If not, fix it and rerun script.')
 animalList = {'Delta','Grunkle Stan','Gunter','Ice King','Nun','Qof','Resh','wikileaks'}; %% set the list of animal's whose data you'll inspect (also sets name of save file).
-animalList = {'Grunkle Stan'}; %% set the list of animal's whose data you'll inspect (also sets name of save file).
 
 keyboard % to allow you to double check you animalList settings... is this correct for the data you wish to process?
 
