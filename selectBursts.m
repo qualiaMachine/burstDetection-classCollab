@@ -130,7 +130,8 @@ try
         end
     end
     programCrashed = false;
-catch
+catch error
+    msgText = getReport(error)
     programCrashed = true;
     try
         saveFile = [saveFolder filesep 'CRASH_FILE_burstCoords_' strjoin(animalList) '.mat'];
