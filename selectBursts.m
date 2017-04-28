@@ -111,7 +111,13 @@ try
                             save(saveFile,'animalIndStart','allProcessedData','dateIndStart','condIndStart','stimIndStart','fileIndStart','coordDataFileListInd','coordDataFileList')
                             return
                         end
-                        [burstLocC,burstLocR] = gatherBurstCoordinates(stimDir,coordDataFileList(iFile).name);
+                        try
+                            [burstLocC,burstLocR] = gatherBurstCoordinates(stimDir,coordDataFileList(iFile).name);
+                        catch errorLoadingFileThatExists
+                            burstLocC = [];
+                            burstLocR = [];
+                        end
+
                         % store file's burst coordinates
                         coordDataFileList(iFile).burstLocC = burstLocC;
                         coordDataFileList(iFile).burstLocR = burstLocR;
