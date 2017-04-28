@@ -31,7 +31,7 @@ import javax.imageio.ImageIO;
 
 public class Lab3_Endemann_Sescleifer_Wolfe {
 
-	public static int     imageSize = 32; // Images are imageSize x imageSize.  The provided data is 128x128, but this can be resized by setting this value (or passing in an argument).
+	public static int     imageWidth = 64, imageHeight = 32; // Images are imageSize x imageSize.  The provided data is 128x128, but this can be resized by setting this value (or passing in an argument).
 										   // You might want to resize to 8x8, 16x16, 32x32, or 64x64; this can reduce your network size and speed up debugging runs.
 										   // ALL IMAGES IN A TRAINING RUN SHOULD BE THE *SAME* SIZE.
 	private static enum    Category { positive, negative };  // We'll hardwire these in, but more robust code would not do so.
@@ -68,8 +68,8 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 		String  tuneDirectory = "images/tuneset/";
 		String  testDirectory = "images/testset/";
 
-		if(args.length > 5) {
-			System.err.println("Usage error: java Lab3_Endemann_Sescleifer_Wolfe <train_set_folder_path> <tune_set_folder_path> <test_set_foler_path> <imageSize>");
+		if(args.length > 6) {
+			System.err.println("Usage error: java Lab3_Endemann_Sescleifer_Wolfe <train_set_folder_path> <tune_set_folder_path> <test_set_foler_path> <imageWidth> <imageHeight>");
 			System.exit(1);
 		}
 		if(dropOut){
@@ -92,7 +92,8 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 		if (args.length >= 1) { trainDirectory = args[0]; }
 		if (args.length >= 2) {  tuneDirectory = args[1]; }
 		if (args.length >= 3) {  testDirectory = args[2]; }
-		if (args.length >= 4) {  imageSize     = Integer.parseInt(args[3]); }
+		if (args.length >= 4) {  imageWidth     = Integer.parseInt(args[3]); }
+		if (args.length >= 5) {  imageHeight     = Integer.parseInt(args[4]); }
 
 		// Here are statements with the absolute path to open images folder
 		File trainsetDir = new File(trainDirectory);
@@ -156,12 +157,10 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 				int locationOfUnderscoreImage = name.indexOf("_image");
 
 				// Resize the image if requested.  Any resizing allowed, but should really be one of 8x8, 16x16, 32x32, or 64x64 (original data is 128x128).
-				// if (imageSize != 128) {
-					scaledBI = new BufferedImage(imageSize, imageSize, BufferedImage.TYPE_INT_RGB);
-					Graphics2D g = scaledBI.createGraphics();
-					g.drawImage(img, 0, 0, imageSize, imageSize, null);
-					g.dispose();
-				// }
+				scaledBI = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_RGB);
+				Graphics2D g = scaledBI.createGraphics();
+				g.drawImage(img, 0, 0, imageWidth, imageHeight, null);
+				g.dispose();
 
 				//Instance instance = new Instance(scaledBI == null ? img : scaledBI, name.substring(0, locationOfUnderscoreImage));
 				Instance instance = new Instance(scaledBI == null ? img : scaledBI, name, "positive");//name.substring(0, locationOfUnderscoreImage));
@@ -198,7 +197,7 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 
 	// Map from 2D coordinates (in pixels) to the 1D fixed-length feature vector.
 	private static double get2DfeatureValue(Vector<Double> ex, int x, int y, int offset) { // If only using GREY, then offset = 0;  Else offset = 0 for RED, 1 for GREEN, 2 for BLUE, and 3 for GREY.
-		return ex.get(unitsPerPixel * (y * imageSize + x) + offset); // Jude: I have not used this, so might need debugging.
+		return ex.get(unitsPerPixel * (y * imageWidth + x) + offset); // Jude: I have not used this, so might need debugging.
 	}
 
 	// Return the count of TESTSET errors for the chosen model.
@@ -244,7 +243,7 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 		Vector<Example> examples = new Vector<Example>(dataset.getSize());
 		List<Instance> images = dataset.getImages();
 		for (Instance image : images) {
-			double[][][] features = new double[imageSize][imageSize][unitsPerPixel];
+			double[][][] features = new double[imageHeight][imageWidth][unitsPerPixel];
 			fillImageArray(features, image);
 			int label = convertCategoryStringToEnum(image.getLabel()).ordinal();
 			examples.add(new Example(features, label));
@@ -254,8 +253,8 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 
 
 	private static void fillImageArray(double[][][] imageArray, Instance image) {
-		for (int x = 0; x < imageSize; x++) {
-			for (int y = 0; y < imageSize; y++) {
+		for (int x = 0; x < imageHeight; x++) {
+			for (int y = 0; y < imageWidth; y++) {
 				if (useRGB) {
 					imageArray[x][y][0] = image.getRedChannel()[x][y] / 255.0;
 					imageArray[x][y][1] = image.getGreenChannel()[x][y] / 255.0;
@@ -505,7 +504,7 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 	}
 
 	private static void reportPerceptronConfig() {
-		println(  "***** PERCEPTRON: UseRGB = " + useRGB + ", imageSize = " + imageSize + "x" + imageSize + ", fraction of training examples used = " + truncate(fractionOfTrainingToUse, 2) + ", eta = " + truncate(eta, 2) + ", input_dropout rate = " + truncate(hiddenDropoutRate, 2) + ", hidden_dropout rate = " + truncate(hiddenDropoutRate, 2)	);
+		println(  "***** PERCEPTRON: UseRGB = " + useRGB + ", imageSize = " + imageWidth + "x" + imageHeight + ", fraction of training examples used = " + truncate(fractionOfTrainingToUse, 2) + ", eta = " + truncate(eta, 2) + ", input_dropout rate = " + truncate(hiddenDropoutRate, 2) + ", hidden_dropout rate = " + truncate(hiddenDropoutRate, 2)	);
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////   ONE HIDDEN LAYER
@@ -548,7 +547,7 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 	}
 
 	private static void reportOneLayerConfig() {
-		println(  "***** ONE-LAYER: UseRGB = " + useRGB + ", imageSize = " + imageSize + "x" + imageSize + ", fraction of training examples used = " + truncate(fractionOfTrainingToUse, 2)
+		println(  "***** ONE-LAYER: UseRGB = " + useRGB + ", imageSize = " + imageWidth + "x" + imageHeight + ", fraction of training examples used = " + truncate(fractionOfTrainingToUse, 2)
 				+ ", eta = " + truncate(eta, 2)   + ", input dropout rate = "      + truncate(inputDropoutRate, 2) + ", hidden dropout rate = "      + truncate(hiddenDropoutRate, 2) + ", number HUs = " + numberOfHiddenUnits
 			//	+ ", activationFunctionForHUs = " + activationFunctionForHUs + ", activationFunctionForOutputs = " + activationFunctionForOutputs
 			//	+ ", # forward props = " + comma(forwardPropCounter)
