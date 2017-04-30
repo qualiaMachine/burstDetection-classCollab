@@ -36,7 +36,7 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 										   // ALL IMAGES IN A TRAINING RUN SHOULD BE THE *SAME* SIZE.
 	private static enum    Category { positive, negative };  // We'll hardwire these in, but more robust code would not do so.
 
-	private static final Boolean    useRGB = true; // If true, FOUR units are used per pixel: red, green, blue, and grey.  If false, only ONE (the grey-scale value).
+	private static final Boolean    useRGB = false; // If true, FOUR units are used per pixel: red, green, blue, and grey.  If false, only ONE (the grey-scale value).
 	public static       int unitsPerPixel = (useRGB ? 4 : 1); // If using RGB, use red+blue+green+grey.  Otherwise just use the grey value.
 
 	private static final String    modelToUse = "deep"; // Should be one of { "perceptrons", "oneLayer", "deep" };  You might want to use this if you are trying approaches other than a Deep ANN.
@@ -118,25 +118,25 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 		loadDataset(testset, testsetDir);
 		System.out.println("The tuneset contains " + comma( testset.getSize()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
-		// createDribbleFile("results/"
-		// 		+ modelToUse
-		// 		+ "_extraExamples"
-		// 		+ Boolean.toString(createExtraTrainingExamples)
-		// 		+ "_inputDropoutRate"
-		// 		+ truncate(  10 * inputDropoutRate,    0)
-		// 		+ "_hiddenDropoutRate"
-		// 		+ truncate(  10 * hiddenDropoutRate,    0)  // Feel free to decide what you wish to include, but aim to NOT print decimal points, since this is a file name
-		// 		+ "_eta"          + truncate(1000 * eta, 0)
-		// 		+ "_trainPercent" + truncate(100 * fractionOfTrainingToUse, 0)
-		// 		+ "_numberHUs"    + numberOfHiddenUnits
-		// 		+ ".txt");
+		createDribbleFile("results/"
+				+ modelToUse
+				+ "_extraExamples"
+				+ Boolean.toString(createExtraTrainingExamples)
+				+ "_inputDropoutRate"
+				+ truncate(  10 * inputDropoutRate,    0)
+				+ "_hiddenDropoutRate"
+				+ truncate(  10 * hiddenDropoutRate,    0)  // Feel free to decide what you wish to include, but aim to NOT print decimal points, since this is a file name
+				+ "_eta"          + truncate(1000 * eta, 0)
+				+ "_trainPercent" + truncate(100 * fractionOfTrainingToUse, 0)
+				+ "_numberHUs"    + numberOfHiddenUnits
+				+ ".txt");
 
 		// Now train a Deep ANN.  You might wish to first use your Lab 2 code here and see how one layer of HUs does.  Maybe even try your perceptron code.
 		// We are providing code that converts images to feature vectors.  Feel free to discard or modify.
 		start = System.currentTimeMillis();
 		trainANN(trainset, tuneset, testset);
 		println("\nTook " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + " to train.");
-		// closeDribbleFile();
+		closeDribbleFile();
 
 	}
 
