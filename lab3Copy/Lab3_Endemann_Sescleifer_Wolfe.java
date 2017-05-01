@@ -54,7 +54,7 @@ protected static  final double  probOfKeepingShiftedTrainsetImage = (shiftProbNu
 protected static  final boolean perturbPerturbedImages            = false;
 private   static  final boolean createExtraTrainingExamples       = false;
 private   static  final boolean confusionMatricies                = true;
-public static final boolean trialValue = false;
+public static final boolean useContext = false;
 public static Map<String, ArrayList<String>> mapExamples;
 public static Map<String, String> mapTrials;
 
@@ -119,15 +119,15 @@ public static void main(String[] args) {
 
 	// Load in images into datasets.
 	long start = System.currentTimeMillis();
-	loadDataset(trainset, trainsetDir, trialValue);
+	loadDataset(trainset, trainsetDir, useContext);
 	System.out.println("The trainset contains " + comma(trainset.size()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
 	start = System.currentTimeMillis();
-	loadDataset(tuneset, tunesetDir, trialValue);
+	loadDataset(tuneset, tunesetDir, useContext);
 	System.out.println("The testset contains " + comma( tuneset.size()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
 	start = System.currentTimeMillis();
-	loadDataset(testset, testsetDir, trialValue);
+	loadDataset(testset, testsetDir, useContext);
 	System.out.println("The tuneset contains " + comma( testset.size()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
 	createDribbleFile("results/"
@@ -933,12 +933,14 @@ class DeepNet {
 		this.layers.add(new FullyConnectedLayer(3, 86, 16, 128,dropOut,layers.get(3)));// **may want to test out varying #nodes in fully connected layer
 		this.layers.add(new FullyConnectedLayer(128, 1, 1, 2,dropOut,layers.get(4)));
 		wideKernel = new FullyConnectedLayer(19, 351, 1, Lab3_Endemann_Sescleifer_Wolfe.wideKernelSize,dropOut,null);
-		this.contextlayers.add(new ConvolutionLayer(19, 1750, Lab3_Endemann_Sescleifer_Wolfe.unitsPerPixel, 8, 2,51,dropOut,normalizeKernelOutputByKernelSum));
-		this.contextlayers.add(new PoolLayer(18,1700, 8,2,dropOut));// ***may want to test out different numFilters
-		this.contextlayers.add(new ConvolutionLayer(9,850, 8, 16, 2,51,dropOut,normalizeKernelOutputByKernelSum));
-		this.contextlayers.add(new PoolLayer(8,800, 16,4,dropOut));
-		this.contextlayers.add(new FullyConnectedLayer(2, 200, 16, 32,dropOut,layers.get(3)));// **may want to test out varying #nodes in fully connected layer
-		this.contextlayers.add(new FullyConnectedLayer(32, 1, 1, 2,dropOut,layers.get(4)));
+		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
+			this.contextlayers.add(new ConvolutionLayer(19, 1750, Lab3_Endemann_Sescleifer_Wolfe.unitsPerPixel, 8, 2,51,dropOut,normalizeKernelOutputByKernelSum));
+			this.contextlayers.add(new PoolLayer(18,1700, 8,2,dropOut));// ***may want to test out different numFilters
+			this.contextlayers.add(new ConvolutionLayer(9,850, 8, 16, 2,51,dropOut,normalizeKernelOutputByKernelSum));
+			this.contextlayers.add(new PoolLayer(8,800, 16,4,dropOut));
+			this.contextlayers.add(new FullyConnectedLayer(2, 200, 16, 32,dropOut,layers.get(3)));// **may want to test out varying #nodes in fully connected layer
+			this.contextlayers.add(new FullyConnectedLayer(32, 1, 1, 2,dropOut,layers.get(4)));
+		}
 		this.doneTraining = false; // necessary for implementing dropout
 
 
@@ -968,15 +970,17 @@ class DeepNet {
 			}
 			layer = nextLayer;
 		}
-		layer = contextlayers.get(0);
-		layer.feedforward(image);
-		for (int i = 1; i < contextlayers.size(); i++) {
-			Layer nextLayer = contextlayers.get(i);
-			nextLayer.feedforward(layer.getOutputs());
-			if (nextLayer instanceof PoolLayer) {
-				((PoolLayer) nextLayer).setSums(layer.getSums());
+		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
+			layer = contextlayers.get(0);
+			layer.feedforward(image);
+			for (int i = 1; i < contextlayers.size(); i++) {
+				Layer nextLayer = contextlayers.get(i);
+				nextLayer.feedforward(layer.getOutputs());
+				if (nextLayer instanceof PoolLayer) {
+					((PoolLayer) nextLayer).setSums(layer.getSums());
+				}
+				layer = nextLayer;
 			}
-			layer = nextLayer;
 		}
 	}
 
@@ -992,9 +996,15 @@ class DeepNet {
 		// Calculate error
 		// 6x1x1 array holding the activations of the last layer
 		Layer lastLayer = this.layers.get(this.layers.size() - 1);
-		Layer contextlastLayer = this.contextlayers.get(this.contextlayers.size() - 1);
+		Layer contextlastLayer = null;
+		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
+			contextlastLayer = this.contextlayers.get(this.contextlayers.size() - 1);
+		}
 		double[][][] outputs = lastLayer.getOutputs();
-		double[][][] contextoutputs = contextlastLayer.getOutputs();
+		double[][][] contextoutputs = null;
+		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
+			contextlastLayer.getOutputs();
+		}
 		double[][][] errors = new double[2][1][1];
 		double[][][] errors2 = null;
 		double[][][] contexterrors = new double[2][1][1];
@@ -1002,9 +1012,11 @@ class DeepNet {
 			double expected = (label == i) ? 1 : 0;
 			errors[i][0][0] = outputs[i][0][0] - expected;
 		}
-		for (int i = 0; i < 2; i++) {
-			double expected = (label == i) ? 1 : 0;
-			contexterrors[i][0][0] = contextoutputs[i][0][0] - expected;
+		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
+			for (int i = 0; i < 2; i++) {
+				double expected = (label == i) ? 1 : 0;
+				contexterrors[i][0][0] = contextoutputs[i][0][0] - expected;
+			}
 		}
 
 		// Backpropagate error, starting with output layer
@@ -1023,13 +1035,15 @@ class DeepNet {
 		if (errors2 != null) {
 			wideKernel.backprop (errors2, null);
 		}
-		for (int i = contextlayers.size() - 1; i >= 0; i--) {
-			Layer layer = contextlayers.get(i);
-			if (i > 0) {
-				Layer nextLayer = contextlayers.get(i - 1);
-				contexterrors = layer.backprop(contexterrors, nextLayer.getSums());
-			} else {
-				contexterrors = layer.backprop(contexterrors, null);
+		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
+			for (int i = contextlayers.size() - 1; i >= 0; i--) {
+				Layer layer = contextlayers.get(i);
+				if (i > 0) {
+					Layer nextLayer = contextlayers.get(i - 1);
+					contexterrors = layer.backprop(contexterrors, nextLayer.getSums());
+				} else {
+					contexterrors = layer.backprop(contexterrors, null);
+				}
 			}
 		}
 	}
@@ -1044,11 +1058,19 @@ class DeepNet {
 		// 6x1x1 array holding the activations of the last layer
 		double[][][] outputs = lastLayer.getOutputs();
 		int maxIndex = 0;
-		Layer contextlastLayer = this.contextlayers.get(this.contextlayers.size() - 1);
-		double[][][] contextoutputs = contextlastLayer.getOutputs();
-		for (int i = 1; i < 2; i++) {
-			if (outputs[i][0][0] + (contextrate)*contextoutputs[i][0][0]> outputs[maxIndex][0][0]+ (contextrate)*contextoutputs[maxIndex][0][0]) {
-				maxIndex = i;
+		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
+			Layer contextlastLayer = this.contextlayers.get(this.contextlayers.size() - 1);
+			double[][][] contextoutputs = contextlastLayer.getOutputs();
+			for (int i = 1; i < 2; i++) {
+				if (outputs[i][0][0] + (contextrate)*contextoutputs[i][0][0]> outputs[maxIndex][0][0]+ (contextrate)*contextoutputs[maxIndex][0][0]) {
+					maxIndex = i;
+				}
+			}
+		} else {
+			for (int i = 1; i < 2; i++) {
+				if (outputs[i][0][0] > outputs[maxIndex][0][0]) {
+					maxIndex = i;
+				}
 			}
 		}
 		return maxIndex;
