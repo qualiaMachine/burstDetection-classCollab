@@ -47,7 +47,7 @@ public static int       inputVectorSize;         // The provided code uses a 1D 
 public static final boolean dropOut = false, normalizeKernelOutputByKernelSum = false; // turns dropout on/off for ALL layers (except output, of course); normalizeKernelOutputByKernelSum was to see effect of normlizign kernel's summed output by sum of kernel weights, recommended by several sources
 public static final double eta       =    0.01, fractionOfTrainingToUse = 1.00, hiddenDropoutRate = 0.0, inputDropoutRate = 0.0; // To turn off drop out, set dropoutRate to 0.0 (or a neg number).
 
-private static final int    maxEpochs = 250; // Feel free to set to a different value.
+private static final int    maxEpochs = 1; // Feel free to set to a different value.
 public static final boolean printEpochErrorPercentages = false;
 protected static  final double  shiftProbNumerator                = 6.0; // 6.0 is the 'default.'
 protected static  final double  probOfKeepingShiftedTrainsetImage = (shiftProbNumerator / 48.0); // This 48 is also embedded elsewhere!
@@ -159,6 +159,7 @@ public static void loadDataset(Vector<Example> dataset, File dir, boolean trial)
 
 			String name = file.getName ();
 			String key = name.substring (name.indexOf ("-") + 1);
+			key = key.substring (key.indexOf ("-") + 1);
 			int label = 0;
 			boolean goNext = false;
 			if (name.contains ("negEx")) {
@@ -657,6 +658,8 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 		double allTuneErrors[] = new double[maxEpochs];
 		double allTestErrors[] = new double[maxEpochs];
 
+	Map<String, Double> mapTestErrors = new HashMap<String, Double> ();
+
 	for (int epoch = 1; epoch <= maxEpochs /* && trainSetErrors > 0 */; epoch++) { // Might still want to train after trainset error = 0 since we want to get all predictions on the 'right side of zero' (whereas errors defined wrt HIGHEST output).
 		permute(train); // Note: this is an IN-PLACE permute, but that is OK.
 		for (Example example : train) {
@@ -685,6 +688,8 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 			best_epoch = epoch;
 			best_tuneSetError = tuneSetError;
 			testSetErrorsAtBestTune = testSetError;
+
+			deepErrors2 (test, network, mapTestErrors);
 		}
 
 		println("Done with Epoch # " + comma(epoch) + ".  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + " (" + convertMillisecondsToTimeSpan(System.currentTimeMillis() - overallStart) + " overall).");
@@ -705,6 +710,12 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 		System.out.println("TEST");
 		System.out.println(Arrays.toString(allTestErrors));
 	}
+
+	System.out.println("Best testset errors by categories");
+	for (Map.Entry<String, Double> entry : mapTestErrors.entrySet ()) {
+		System.out.println ("'" + entry.getKey () + "' errors = " + (entry.getValue () * 100.0) + "%");
+	}
+
 	return testSetErrorsAtBestTune;
 }
 
@@ -727,6 +738,40 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 		}
 	}
 	return errors;
+}
+
+ private static void deepErrors2(Vector<Example> dataset, DeepNet network, Map<String, Double> mapLoss) {
+	mapLoss.clear ();
+	Map<String, Double> mapCounts = new HashMap<String, Double> ();
+	Map<String, Double> mapErrors = new HashMap<String, Double> ();
+	int errors = 0;
+	for (Example example : dataset) {
+		int label = network.getLabel(example.features);
+		String name = example.name;
+		name = name.substring (name.indexOf ("-") + 1);
+		name = name.substring (0, name.indexOf ("-"));
+		double count = 0;
+		if (mapCounts.containsKey (name)) {
+			count = mapCounts.get (name);
+			mapCounts.remove (name);
+		}
+		count += 1;
+		mapCounts.put (name, count);
+		double error = 0;
+		if (mapErrors.containsKey (name)) {
+			error = mapErrors.get (name);
+			mapErrors.remove (name);
+		}
+		if (label != example.label) {
+			error ++;
+		}
+		mapErrors.put (name, error);
+	}
+	for (Map.Entry<String, Double> entry : mapCounts.entrySet ()) {
+		mapLoss.put (entry.getKey (), mapErrors.get (entry.getKey ()) / entry.getValue ());
+	}
+	mapCounts.clear ();
+	mapErrors.clear ();
 }
 
 private static void printConfusion(int[][] confusion) {
