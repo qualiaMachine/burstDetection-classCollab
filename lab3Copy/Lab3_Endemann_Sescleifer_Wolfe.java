@@ -190,7 +190,7 @@ public static void loadDataset(Vector<Example> dataset, File dir, boolean trial)
 					}
 				}
 
-				dataset.add (new Example (features, label));
+				dataset.add (new Example (features, label, name));
 			}
 
 			fis.close ();
@@ -799,10 +799,12 @@ public static File ensureDirExists(String file) {
 class Example {
 public double[][][] features;
 public int label;
+public String name;
 
-public Example(double[][][] features, int label) {
+public Example(double[][][] features, int label, String name) {
 	this.features = features;
 	this.label = label;
+	this.name = name;
 }
 }
 
