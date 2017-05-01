@@ -68,9 +68,9 @@ public static void main(String[] args) {
 	}
 
 
-	String trainDirectory = "images/trainset/";
-	String  tuneDirectory = "images/tuneset/";
-	String  testDirectory = "images/testset/";
+	String trainDirectory = "../dataSetPartitionedIntroItrainTuneTest/train/";
+	String  tuneDirectory = "../dataSetPartitionedIntroItrainTuneTest/tune/";
+	String  testDirectory = "../dataSetPartitionedIntroItrainTuneTest/test/";
 
 	if(args.length > 6) {
 		System.err.println("Usage error: java Lab3_Endemann_Sescleifer_Wolfe <train_set_folder_path> <tune_set_folder_path> <test_set_foler_path> <imageWidth> <imageHeight>");
@@ -160,12 +160,7 @@ public static void loadDataset(Vector<Example> dataset, File dir, boolean trial)
 			String key = name.substring (name.indexOf ("-") + 1);
 			int label = 0;
 			boolean goNext = false;
-			if (name.contains ("normTrialWithShuffledBurst") || name.contains ("normTrial")) {
-				if (trial) {
-					goNext = true;
-				}
-				mapTrials.put (name, key);
-			} else if (name.contains ("Negative") || name.contains ("shuffledBurstPosE")) {
+			if (name.contains ("negEx")) {
 				if (!mapExamples.containsKey (key)) {
 					mapExamples.put (key, new ArrayList<String> ());
 				}
@@ -174,11 +169,16 @@ public static void loadDataset(Vector<Example> dataset, File dir, boolean trial)
 					label = 1;
 					goNext = true;
 				}
-			} else {
+			} else if (name.contains ("posEx")) {
 				if (!trial) {
 					label = 0;
 					goNext = true;
 				}
+			} else {
+				if (trial) {
+					goNext = true;
+				}
+				mapTrials.put (name, key);
 			}
 
 			if (goNext) {
