@@ -951,6 +951,7 @@ class DeepNet {
 		double[][][] outputs = lastLayer.getOutputs();
 		double[][][] contextoutputs = contextlastLayer.getOutputs();
 		double[][][] errors = new double[2][1][1];
+		double[][][] errors2 = null;
 		double[][][] contexterrors = new double[2][1][1];
 		for (int i = 0; i < 2; i++) {
 			double expected = (label == i) ? 1 : 0;
@@ -966,10 +967,16 @@ class DeepNet {
 			Layer layer = layers.get(i);
 			if (i > 0) {
 				Layer nextLayer = layers.get(i - 1);
+				if (i == 4) {
+					errors2 = layer.backprop2 (errors, wideKernel.getSums ());
+				}
 				errors = layer.backprop(errors, nextLayer.getSums());
 			} else {
 				errors = layer.backprop(errors, null);
 			}
+		}
+		if (errors2 != null) {
+			wideKernel.backprop (errors2, null);
 		}
 		for (int i = contextlayers.size() - 1; i >= 0; i--) {
 			Layer layer = contextlayers.get(i);
@@ -1008,6 +1015,7 @@ interface Layer {
 	public void feedforward(double[][][] input);
 	public void feedforward2(double[][][] input, double[][][] input2);
 	public double[][][] backprop(double[][][] error, double[][][] sums);
+	public double[][][] backprop2(double[][][] error, double[][][] sums);
 	public double[][][] getSums();
 	public double[][][] getOutputs();
 	public double[][][] getDropOutFlags();
@@ -1302,6 +1310,10 @@ class ConvolutionLayer implements Layer {
 
 	}
 
+	public double[][][] backprop2(double[][][] error, double[][][] sums) {
+		return error;
+	}
+
 	public void updateWeights(double error, int startX, int startY, int filter) {
 		for (int x = 0; x < this.filterSize; x++) {
 			for (int y = 0; y < this.filterSize; y++) {
@@ -1519,6 +1531,10 @@ class PoolLayer implements Layer {
 
 	}
 
+	public double[][][] backprop2(double[][][] error, double[][][] sums) {
+		return error;
+	}
+
 	double calculateMax(double[][][] inputs, int outputX, int outputY, int z) {
 		int startX = outputX * this.poolSize;
 		int startY = outputY * this.poolSize;
@@ -1590,6 +1606,7 @@ class FullyConnectedLayer implements Layer {
 	double[] biases;
 	double[][][] sums;
 	double[][][] inputs;
+	double[][][] inputs2;
 	double[][][] outputs;
 
 	// drop out vars
@@ -1693,6 +1710,7 @@ class FullyConnectedLayer implements Layer {
 
 	public void feedforward2 (double[][][] inputs, double[][][] inputs2) {
 		this.inputs = inputs;
+		this.inputs2 = inputs2;
 		if(dropOutLayer){
 			// Update dropOut flags for each example
 			fullyConnectedLayerDropOutFlags = new double[inputWidth][inputHeight][inputDepth];
@@ -1793,6 +1811,49 @@ class FullyConnectedLayer implements Layer {
 				for (int z = 0; z < this.inputDepth; z++) {
 					for (int output = 0; output < this.numOutputs; output++) {
 						this.weights[x][y][z][output] -= Lab3_Endemann_Sescleifer_Wolfe.eta * this.inputs[x][y][z] * errors[output][0][0];
+					}
+				}
+			}
+		}
+
+		return nextErrors;
+	}
+
+	public double[][][] backprop2(double[][][] errors, double[][][] sums) {
+		double[][][] nextErrors = new double[this.inputWidth2][this.inputHeight2][this.inputDepth2];
+
+		// sums == null when this is the first layer in the network, and there is nothing to pass errors back to
+		if (sums != null) {
+
+			double [][][] dropOutFlags = this.getDropOutFlags();
+
+			// Calculate the errors to be passed into the next layer
+			for (int x = 0; x < this.inputWidth2; x++) {
+				for (int y = 0; y < this.inputHeight2; y++) {
+					for (int z = 0; z < this.inputDepth2; z++) {
+						nextErrors[x][y][z] = 0;
+						for (int output = 0; output < this.numOutputs; output++) {
+							if(this.dropOutLayer == true){
+								// - Signifies you're looking at inputs from layer that had dropout (i.e. second fullyConnectedLayer)
+								// - Multiply nextErrors by dropOut flags used during forward prop
+								nextErrors[x][y][z] += this.weights2[x][y][z][output] * errors[output][0][0] * dropOutFlags[x][y][z];
+
+							}else{
+								nextErrors[x][y][z] += this.weights2[x][y][z][output] * errors[output][0][0];
+							}
+						}
+						nextErrors[x][y][z] *= DeepNet.sigmoidPrime(sums[x][y][z]);
+					}
+				}
+			}
+		}
+
+		// Perform weight updates
+		for (int x = 0; x < this.inputWidth2; x++) {
+			for (int y = 0; y < this.inputHeight2; y++) {
+				for (int z = 0; z < this.inputDepth2; z++) {
+					for (int output = 0; output < this.numOutputs; output++) {
+						this.weights2[x][y][z][output] -= Lab3_Endemann_Sescleifer_Wolfe.eta * this.inputs2[x][y][z] * errors[output][0][0];
 					}
 				}
 			}
