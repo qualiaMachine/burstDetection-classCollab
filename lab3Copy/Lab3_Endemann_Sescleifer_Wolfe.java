@@ -31,9 +31,10 @@ import javax.imageio.ImageIO;
 
 public class Lab3_Endemann_Sescleifer_Wolfe {
 
-public static int     imageWidth = 35, imageHeight = 19; // Images are imageSize x imageSize.  The provided data is 128x128, but this can be resized by setting this value (or passing in an argument).
+public static int     imageWidth = 351, imageHeight = 19; // Images are imageSize x imageSize.  The provided data is 128x128, but this can be resized by setting this value (or passing in an argument).
 										 // You might want to resize to 8x8, 16x16, 32x32, or 64x64; this can reduce your network size and speed up debugging runs.
 										 // ALL IMAGES IN A TRAINING RUN SHOULD BE THE *SAME* SIZE.
+public static int 		wideKernelSize = 200;
 private static enum    Category { positive, negative };  // We'll hardwire these in, but more robust code would not do so.
 
 private static final Boolean    useRGB = false; // If true, FOUR units are used per pixel: red, green, blue, and grey.  If false, only ONE (the grey-scale value).
@@ -855,6 +856,7 @@ class DeepNet {
 	}
 
 	ArrayList<Layer> layers = new ArrayList<>();
+	Layer wideKernel;
 	ArrayList<Layer> contextlayers = new ArrayList<>();
 	static boolean doneTraining;
 	public double contextrate = 0.1;
@@ -879,12 +881,13 @@ class DeepNet {
 //			this.doneTraining = false; // necessary for implementing dropout
 
 		// First boolean argument added to signify that layer should dropout (if dropout is on) input to layer
-		this.layers.add(new ConvolutionLayer(19,35, Lab3_Endemann_Sescleifer_Wolfe.unitsPerPixel, 8, 4,dropOut,normalizeKernelOutputByKernelSum));
-		this.layers.add(new PoolLayer(16,32,8,2,dropOut));// ***may want to test out different numFilters
-		this.layers.add(new ConvolutionLayer(8,16, 8, 16, 3,dropOut,normalizeKernelOutputByKernelSum));
-		this.layers.add(new PoolLayer(6,14, 16,2,dropOut));
-		this.layers.add(new FullyConnectedLayer(3, 7, 16, 128,dropOut,layers.get(3)));// **may want to test out varying #nodes in fully connected layer
+		this.layers.add(new ConvolutionLayer(19,351, Lab3_Endemann_Sescleifer_Wolfe.unitsPerPixel, 8, 4,dropOut,normalizeKernelOutputByKernelSum));
+		this.layers.add(new PoolLayer(16,348,8,2,dropOut));// ***may want to test out different numFilters
+		this.layers.add(new ConvolutionLayer(8,174, 8, 16, 3,dropOut,normalizeKernelOutputByKernelSum));
+		this.layers.add(new PoolLayer(6,172, 16,2,dropOut));
+		this.layers.add(new FullyConnectedLayer(3, 86, 16, 128,dropOut,layers.get(3)));// **may want to test out varying #nodes in fully connected layer
 		this.layers.add(new FullyConnectedLayer(128, 1, 1, 2,dropOut,layers.get(4)));
+		wideKernel = new FullyConnectedLayer(19, 351, 1, Lab3_Endemann_Sescleifer_Wolfe.wideKernelSize,dropOut,null);
 		this.contextlayers.add(new ConvolutionLayer(19, 1750, Lab3_Endemann_Sescleifer_Wolfe.unitsPerPixel, 8, 2,51,dropOut,normalizeKernelOutputByKernelSum));
 		this.contextlayers.add(new PoolLayer(18,1700, 8,2,dropOut));// ***may want to test out different numFilters
 		this.contextlayers.add(new ConvolutionLayer(9,850, 8, 16, 2,51,dropOut,normalizeKernelOutputByKernelSum));
@@ -905,11 +908,16 @@ class DeepNet {
 
 	public void feedforward(double[][][] image) {
 //	        System.out.println(image.length+" "+image[1].length+" "+image[0][1].length);
+		wideKernel.feedforward (image);
 		Layer layer = layers.get(0);
 		layer.feedforward(image);
 		for (int i = 1; i < layers.size(); i++) {
 			Layer nextLayer = layers.get(i);
-			nextLayer.feedforward(layer.getOutputs());
+			if (i == 4) {
+				nextLayer.feedforward2 (layer.getOutputs (), wideKernel.getOutputs ());
+			} else {
+				nextLayer.feedforward(layer.getOutputs());
+			}
 			if (nextLayer instanceof PoolLayer) {
 				((PoolLayer) nextLayer).setSums(layer.getSums());
 			}
@@ -963,9 +971,7 @@ class DeepNet {
 				errors = layer.backprop(errors, null);
 			}
 		}
-		for (int i = contextlayers.
-
-				size() - 1; i >= 0; i--) {
+		for (int i = contextlayers.size() - 1; i >= 0; i--) {
 			Layer layer = contextlayers.get(i);
 			if (i > 0) {
 				Layer nextLayer = contextlayers.get(i - 1);
@@ -1000,6 +1006,7 @@ class DeepNet {
 
 interface Layer {
 	public void feedforward(double[][][] input);
+	public void feedforward2(double[][][] input, double[][][] input2);
 	public double[][][] backprop(double[][][] error, double[][][] sums);
 	public double[][][] getSums();
 	public double[][][] getOutputs();
@@ -1186,6 +1193,8 @@ class ConvolutionLayer implements Layer {
 			}
 		}
 	}
+
+	public void feedforward2(double[][][] input, double[][][] input2) {}
 
 	public double[][][] backprop(double[][][] errors, double[][][] sums) {
 		if(inputSize != 0) {
@@ -1461,6 +1470,8 @@ class PoolLayer implements Layer {
 		}
 	}
 
+	public void feedforward2(double[][][] input, double[][][] input2) {}
+
 	public double[][][] backprop(double[][][] errors, double[][][] sums) {
 		// Returns a sparse matrix that copies the errors to each source
 		// For example [[ 1, 2 ], [ 3, 4 ]] would give us [4] in the forward pass, and a sources matrix that looks like:
@@ -1574,6 +1585,8 @@ class PoolLayer implements Layer {
 class FullyConnectedLayer implements Layer {
 	int inputWidth, inputHeight, inputDepth, numOutputs;
 	double[][][][] weights;
+	int inputWidth2, inputHeight2, inputDepth2;
+	double[][][][] weights2;
 	double[] biases;
 	double[][][] sums;
 	double[][][] inputs;
@@ -1607,6 +1620,20 @@ class FullyConnectedLayer implements Layer {
 				for (int z = 0; z < inputDepth; z++) {
 					for (int output = 0; output < numOutputs; output++) {
 						this.weights[x][y][z][output] = Lab3_Endemann_Sescleifer_Wolfe.getRandomWeight(inputWidth * inputHeight * inputDepth, numOutputs);
+					}
+				}
+			}
+		}
+
+		this.inputWidth2 = Lab3_Endemann_Sescleifer_Wolfe.wideKernelSize;
+		this.inputHeight2 = 1;
+		this.inputDepth2 = 1;
+		this.weights2 = new double[inputWidth2][inputHeight2][inputDepth2][numOutputs];
+		for (int x = 0; x < inputWidth2; x++) {
+			for (int y = 0; y < inputHeight2; y++) {
+				for (int z = 0; z < inputDepth2; z++) {
+					for (int output = 0; output < numOutputs; output++) {
+						this.weights2[x][y][z][output] = Lab3_Endemann_Sescleifer_Wolfe.getRandomWeight(inputWidth * inputHeight * inputDepth, numOutputs);
 					}
 				}
 			}
@@ -1653,6 +1680,68 @@ class FullyConnectedLayer implements Layer {
 							}
 						}else{
 							this.sums[output][0][0] += inputs[x][y][z] * this.weights[x][y][z][output] * (1 - Lab3_Endemann_Sescleifer_Wolfe.hiddenDropoutRate);
+						}
+					}
+				}
+			}
+		}
+
+		for (int output = 0; output < this.numOutputs; output++) {
+			this.outputs[output][0][0] = DeepNet.sigmoid(this.sums[output][0][0]);
+		}
+	}
+
+	public void feedforward2 (double[][][] inputs, double[][][] inputs2) {
+		this.inputs = inputs;
+		if(dropOutLayer){
+			// Update dropOut flags for each example
+			fullyConnectedLayerDropOutFlags = new double[inputWidth][inputHeight][inputDepth];
+			if(Lab3_Endemann_Sescleifer_Wolfe.hiddenDropoutRate <= 0.0 || DeepNet.doneTraining){
+				// effectively turns off dropOut
+				for(double rowCol[][]: fullyConnectedLayerDropOutFlags){
+					for(double depth[]: rowCol){
+						Arrays.fill(depth, 1.0);
+					}
+				}
+			}else{
+				// flag updates
+				for(int i = 0; i < inputWidth; i++) {
+					for(int j = 0; j < inputHeight; j++) {
+						for(int k = 0; k < inputDepth; k++) {
+							if (Math.random() > Lab3_Endemann_Sescleifer_Wolfe.hiddenDropoutRate) fullyConnectedLayerDropOutFlags[i][j][k] = 1.0;
+						}
+					}
+				}
+			}
+		}
+		for (int output = 0; output < this.numOutputs; output++) {
+			this.sums[output][0][0] = this.biases[output];
+			for (int x = 0; x < this.inputWidth; x++) {
+				for (int y = 0; y < this.inputHeight; y++) {
+					for (int z = 0; z < this.inputDepth; z++) {
+						if(!DeepNet.doneTraining){
+							if(dropOutLayer){
+								this.sums[output][0][0] += inputs[x][y][z] * this.weights[x][y][z][output] * fullyConnectedLayerDropOutFlags[x][y][z];
+							}else{
+								this.sums[output][0][0] += inputs[x][y][z] * this.weights[x][y][z][output];
+							}
+						}else{
+							this.sums[output][0][0] += inputs[x][y][z] * this.weights[x][y][z][output] * (1 - Lab3_Endemann_Sescleifer_Wolfe.hiddenDropoutRate);
+						}
+					}
+				}
+			}
+			for (int x = 0; x < this.inputWidth2; x++) {
+				for (int y = 0; y < this.inputHeight2; y++) {
+					for (int z = 0; z < this.inputDepth2; z++) {
+						if(!DeepNet.doneTraining){
+							if(dropOutLayer){
+								this.sums[output][0][0] += inputs2[x][y][z] * this.weights2[x][y][z][output] * fullyConnectedLayerDropOutFlags[x][y][z];
+							}else{
+								this.sums[output][0][0] += inputs2[x][y][z] * this.weights2[x][y][z][output];
+							}
+						}else{
+							this.sums[output][0][0] += inputs2[x][y][z] * this.weights2[x][y][z][output] * (1 - Lab3_Endemann_Sescleifer_Wolfe.hiddenDropoutRate);
 						}
 					}
 				}
