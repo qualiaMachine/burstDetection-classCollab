@@ -31,7 +31,7 @@ import javax.imageio.ImageIO;
 
 public class Lab3_Endemann_Sescleifer_Wolfe {
 
-	public static int     imageWidth = 64, imageHeight = 32; // Images are imageSize x imageSize.  The provided data is 128x128, but this can be resized by setting this value (or passing in an argument).
+	public static int     imageWidth = 35, imageHeight = 19; // Images are imageSize x imageSize.  The provided data is 128x128, but this can be resized by setting this value (or passing in an argument).
 										   // You might want to resize to 8x8, 16x16, 32x32, or 64x64; this can reduce your network size and speed up debugging runs.
 										   // ALL IMAGES IN A TRAINING RUN SHOULD BE THE *SAME* SIZE.
 	private static enum    Category { positive, negative };  // We'll hardwire these in, but more robust code would not do so.
@@ -53,6 +53,7 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 	protected static  final boolean perturbPerturbedImages            = false;
 	private   static  final boolean createExtraTrainingExamples       = false;
 	private   static  final boolean confusionMatricies                = true; 
+	public static final boolean trialValue = false;
 	public static void main(String[] args) {
 		// Check dropOut params
 		if(hiddenDropoutRate < 0.0 || inputDropoutRate < 0.0) {
@@ -101,22 +102,25 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 		File testsetDir  = new File( testDirectory);
 
 		// create three datasets
-		Dataset trainset = new Dataset();
-		Dataset  tuneset = new Dataset();
-		Dataset  testset = new Dataset();
+		// Dataset trainset = new Dataset();
+		// Dataset  tuneset = new Dataset();
+		// Dataset  testset = new Dataset();
+		Vector<Example> trainset = new Vector<Example>();
+		Vector<Example>  tuneset = new Vector<Example>();
+		Vector<Example>  testset = new Vector<Example>();
 
 		// Load in images into datasets.
 		long start = System.currentTimeMillis();
-		loadDataset(trainset, trainsetDir);
-		System.out.println("The trainset contains " + comma(trainset.getSize()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
+		loadDataset(trainset, trainsetDir, trialValue);
+		System.out.println("The trainset contains " + comma(trainset.size()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
 		start = System.currentTimeMillis();
-		loadDataset(tuneset, tunesetDir);
-		System.out.println("The testset contains " + comma( tuneset.getSize()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
+		loadDataset(tuneset, tunesetDir, trialValue);
+		System.out.println("The testset contains " + comma( tuneset.size()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
 		start = System.currentTimeMillis();
-		loadDataset(testset, testsetDir);
-		System.out.println("The tuneset contains " + comma( testset.getSize()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
+		loadDataset(testset, testsetDir, trialValue);
+		System.out.println("The tuneset contains " + comma( testset.size()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
 		createDribbleFile("results/"
 				+ modelToUse
@@ -140,37 +144,91 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 
 	}
 
-	public static void loadDataset(Dataset dataset, File dir) {
+	public static void loadDataset(Vector<Example> dataset, File dir, boolean trial) {
 		for(File file : dir.listFiles()) {
-			// check all files
-			 if(!file.isFile() || !file.getName().endsWith(".jpg")) {
-				continue;
-			}
-			//String path = file.getAbsolutePath();
-			BufferedImage img = null, scaledBI = null;
 			try {
-				// load in all images
-				img = ImageIO.read(file);
-				// every image's name is in such format:
-				// label_image_XXXX(4 digits) though this code could handle more than 4 digits.
-				String name = file.getName();
-				int locationOfUnderscoreImage = name.indexOf("_image");
+				FileInputStream fis = new FileInputStream(file);
 
-				// Resize the image if requested.  Any resizing allowed, but should really be one of 8x8, 16x16, 32x32, or 64x64 (original data is 128x128).
-				scaledBI = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_RGB);
-				Graphics2D g = scaledBI.createGraphics();
-				g.drawImage(img, 0, 0, imageWidth, imageHeight, null);
-				g.dispose();
+				String name = file.getName ();
+				int label = 0;
+				boolean goNext = false;
+				if (name.contains ("normTrialWithShuffledBurst") || name.contains ("normTrial")) {
+					if (trial) {
+						goNext = true;
+					}
+				} else if (name.contains ("Negative") || name.contains ("shuffledBurstPosE")) {
+					if (!trial) {
+						label = 1;
+						goNext = true;
+					}
+				} else {
+					if (!trial) {
+						label = 0;
+						goNext = true;
+					}
+				}
 
-				//Instance instance = new Instance(scaledBI == null ? img : scaledBI, name.substring(0, locationOfUnderscoreImage));
-				Instance instance = new Instance(scaledBI == null ? img : scaledBI, name, "positive");//name.substring(0, locationOfUnderscoreImage));
+				if (goNext) {
+					double[][][] features = new double[imageHeight][imageWidth][unitsPerPixel];
 
-				dataset.add(instance);
-			} catch (IOException e) {
-				System.err.println("Error: cannot load in the image file");
-				System.exit(1);
-			}
+					int content;
+					int i = 0,j = 0;
+					while ((content = fis.read()) != -1) {
+						if ((char) content == '0') {
+							for (int k = 0;k < unitsPerPixel;k ++) {
+								features[i][j][k] = 0;
+							}
+							j ++;
+						} else if ((char) content == '1') {
+							for (int k = 0;k < unitsPerPixel;k ++) {
+								features[i][j][k] = 1;
+							}
+							j ++;
+						} else if ((char) content == '\n') {
+							i ++;
+							j = 0;
+						}
+					}
+
+					dataset.add (new Example (features, label));
+				}
+
+				fis.close ();
+			} catch (Exception e) { }
 		}
+
+		// for(File file : dir.listFiles()) {
+		// 	// check all files
+		// 	 if(!file.isFile() || !file.getName().endsWith(".jpg")) {
+		// 		continue;
+		// 	}
+		// 	//String path = file.getAbsolutePath();
+		// 	BufferedImage img = null, scaledBI = null;
+		// 	try {
+		// 		// load in all images
+		// 		img = ImageIO.read(file);
+		// 		img = img.getSubimage (470, 30, 256, 760);
+
+		// 		// every image's name is in such format:
+		// 		// label_image_XXXX(4 digits) though this code could handle more than 4 digits.
+		// 		String name = file.getName();
+		// 		int locationOfUnderscoreImage = name.indexOf("_image");
+
+		// 		// Resize the image if requested.  Any resizing allowed, but should really be one of 8x8, 16x16, 32x32, or 64x64 (original data is 128x128).
+		// 		scaledBI = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_RGB);
+		// 		Graphics2D g = scaledBI.createGraphics();
+		// 		g.drawImage(img, 0, 0, imageWidth, imageHeight, null);
+		// 		g.dispose();
+
+		// 		//Instance instance = new Instance(scaledBI == null ? img : scaledBI, name.substring(0, locationOfUnderscoreImage));
+		// 		Instance instance = new Instance(scaledBI == null ? img : scaledBI, name, "positive");//name.substring(0, locationOfUnderscoreImage));
+
+		// 		dataset.add(instance);
+		// 	} catch (IOException e) {
+		// 		System.err.println("Error: cannot load in the image file");
+		// 		System.exit(1);
+		// 	}
+		// }
 	}
 
 	/**
@@ -201,42 +259,43 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 	}
 
 	// Return the count of TESTSET errors for the chosen model.
-	private static int trainANN(Dataset trainset, Dataset tuneset, Dataset testset) {
-		Instance sampleImage = trainset.getImages().get(0); // Assume there is at least one train image!
-		inputVectorSize = sampleImage.getWidth() * sampleImage.getHeight() * unitsPerPixel + 1; // The '-1' for the bias is not explicitly added to all examples (instead code should implicitly handle it).  The final 1 is for the CATEGORY.
+	private static int trainANN(Vector<Example> trainset, Vector<Example> tuneset, Vector<Example> testset) {
+	// private static int trainANN(Dataset trainset, Dataset tuneset, Dataset testset) {
+		// Instance sampleImage = trainset.getImages().get(0); // Assume there is at least one train image!
+		// inputVectorSize = sampleImage.getWidth() * sampleImage.getHeight() * unitsPerPixel + 1; // The '-1' for the bias is not explicitly added to all examples (instead code should implicitly handle it).  The final 1 is for the CATEGORY.
 
-		System.out.println("Time to start learning...");
+		// System.out.println("Time to start learning...");
 
-		if (modelToUse.equals("deep")) {
-			Vector<Example> train = convertExamples(trainset);
-			Vector<Example> tune = convertExamples(tuneset);
-			Vector<Example> test = convertExamples(testset);
-			return trainDeep(train,tune,test);
-		} else {
-			Vector<Vector<Double>> trainFeatureVectors = new Vector<Vector<Double>>(trainset.getSize());
-			Vector<Vector<Double>>  tuneFeatureVectors = new Vector<Vector<Double>>( tuneset.getSize());
-			Vector<Vector<Double>>  testFeatureVectors = new Vector<Vector<Double>>( testset.getSize());
+		// if (modelToUse.equals("deep")) {
+			// Vector<Example> train = convertExamples(trainset);
+			// Vector<Example> tune = convertExamples(tuneset);
+			// Vector<Example> test = convertExamples(testset);
+			return trainDeep(trainset,tuneset,testset);
+		// } else {
+		// 	Vector<Vector<Double>> trainFeatureVectors = new Vector<Vector<Double>>(trainset.getSize());
+		// 	Vector<Vector<Double>>  tuneFeatureVectors = new Vector<Vector<Double>>( tuneset.getSize());
+		// 	Vector<Vector<Double>>  testFeatureVectors = new Vector<Vector<Double>>( testset.getSize());
 
-			long start = System.currentTimeMillis();
-			fillFeatureVectors(trainFeatureVectors, trainset);
-			System.out.println("Converted " + trainFeatureVectors.size() + " TRAIN examples to feature vectors. Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
+		// 	long start = System.currentTimeMillis();
+		// 	fillFeatureVectors(trainFeatureVectors, trainset);
+		// 	System.out.println("Converted " + trainFeatureVectors.size() + " TRAIN examples to feature vectors. Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
-			start = System.currentTimeMillis();
-			fillFeatureVectors( tuneFeatureVectors,  tuneset);
-			System.out.println("Converted " +  tuneFeatureVectors.size() + " TUNE  examples to feature vectors. Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
+		// 	start = System.currentTimeMillis();
+		// 	fillFeatureVectors( tuneFeatureVectors,  tuneset);
+		// 	System.out.println("Converted " +  tuneFeatureVectors.size() + " TUNE  examples to feature vectors. Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
-			start = System.currentTimeMillis();
-			fillFeatureVectors( testFeatureVectors,  testset);
-			System.out.println("Converted " +  testFeatureVectors.size() + " TEST  examples to feature vectors. Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
+		// 	start = System.currentTimeMillis();
+		// 	fillFeatureVectors( testFeatureVectors,  testset);
+		// 	System.out.println("Converted " +  testFeatureVectors.size() + " TEST  examples to feature vectors. Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
-			if (modelToUse.equals("oneLayer")) {
-				return trainOneHU(trainFeatureVectors, tuneFeatureVectors, testFeatureVectors);
-			} else if (modelToUse.equals("perceptrons")) {
-				return trainPerceptrons(trainFeatureVectors, tuneFeatureVectors, testFeatureVectors);
-			} else {
-				return -1;
-			}
-		}
+		// 	if (modelToUse.equals("oneLayer")) {
+		// 		return trainOneHU(trainFeatureVectors, tuneFeatureVectors, testFeatureVectors);
+		// 	} else if (modelToUse.equals("perceptrons")) {
+		// 		return trainPerceptrons(trainFeatureVectors, tuneFeatureVectors, testFeatureVectors);
+		// 	} else {
+		// 		return -1;
+		// 	}
+		// }
 	}
 
 	private static Vector<Example> convertExamples(Dataset dataset) {

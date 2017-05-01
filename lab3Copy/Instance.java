@@ -14,6 +14,9 @@ import java.awt.image.BufferedImage;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
+import javax.imageio.ImageIO;
+import java.io.File;
+
 
 public class Instance {
     // store the bufferedImage
@@ -41,6 +44,12 @@ public class Instance {
         red_channel   = new int[height][width];
         green_channel = new int[height][width];
         blue_channel  = new int[height][width];
+
+        try {
+            // retrieve image
+            File outputfile = new File("saved.png");
+            ImageIO.write(image, "png", outputfile);
+        } catch (Exception e) { }
 
         for(int row = 0; row < height; ++row) {
             for(int col = 0; col < width; ++col) {
