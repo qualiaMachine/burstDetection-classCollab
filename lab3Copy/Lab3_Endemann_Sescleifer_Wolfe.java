@@ -54,6 +54,9 @@ protected static  final boolean perturbPerturbedImages            = false;
 private   static  final boolean createExtraTrainingExamples       = false;
 private   static  final boolean confusionMatricies                = true;
 public static final boolean trialValue = false;
+public static Map<String, ArrayList<String>> mapExamples;
+public static Map<String, String> mapTrials;
+
 public static void main(String[] args) {
 	// Check dropOut params
 	if(hiddenDropoutRate < 0.0 || inputDropoutRate < 0.0) {
@@ -109,6 +112,10 @@ public static void main(String[] args) {
 	Vector<Example>  tuneset = new Vector<Example>();
 	Vector<Example>  testset = new Vector<Example>();
 
+	// Initializa Mapping
+	mapTrials = new HashMap<String, String> ();
+	mapExamples = new HashMap<String, ArrayList<String>> ();
+
 	// Load in images into datasets.
 	long start = System.currentTimeMillis();
 	loadDataset(trainset, trainsetDir, trialValue);
@@ -150,13 +157,19 @@ public static void loadDataset(Vector<Example> dataset, File dir, boolean trial)
 			FileInputStream fis = new FileInputStream(file);
 
 			String name = file.getName ();
+			String key = name.substring (name.indexOf ("-") + 1);
 			int label = 0;
 			boolean goNext = false;
 			if (name.contains ("normTrialWithShuffledBurst") || name.contains ("normTrial")) {
 				if (trial) {
 					goNext = true;
 				}
+				mapTrials.put (name, key);
 			} else if (name.contains ("Negative") || name.contains ("shuffledBurstPosE")) {
+				if (!mapExamples.containsKey (key)) {
+					mapExamples.put (key, new ArrayList<String> ());
+				}
+				mapExamples.get (key).add (name);
 				if (!trial) {
 					label = 1;
 					goNext = true;
@@ -305,7 +318,7 @@ private static Vector<Example> convertExamples(Dataset dataset) {
 		double[][][] features = new double[imageHeight][imageWidth][unitsPerPixel];
 		fillImageArray(features, image);
 		int label = convertCategoryStringToEnum(image.getLabel()).ordinal();
-		examples.add(new Example(features, label));
+		examples.add(new Example(features, label, "name"));
 	}
 	return examples;
 }
