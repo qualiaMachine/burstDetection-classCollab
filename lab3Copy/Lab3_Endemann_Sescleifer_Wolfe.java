@@ -1043,6 +1043,7 @@ class ConvolutionLayer implements Layer {
 	public ConvolutionLayer(int inputLength, int inputWidth, int inputDepth, int numFilters, int filterSize, boolean dropOutLayer, boolean normalizeKernelOutputByKernelSum) {
 		this.inputLength = inputLength;
 		this.inputWidth = inputWidth;
+		this.inputDepth = inputDepth;
 		this.numFilters = numFilters;
 		this.filterSize = filterSize;
 		this.dropOutLayer = dropOutLayer;
@@ -1069,6 +1070,7 @@ class ConvolutionLayer implements Layer {
 	public ConvolutionLayer(int inputLength, int inputWidth, int inputDepth, int numFilters, int filterLength, int filterWidth, boolean dropOutLayer, boolean normalizeKernelOutputByKernelSum) {
 		this.inputLength = inputLength;
 		this.inputWidth = inputWidth;
+		this.inputDepth = inputDepth;
 		this.numFilters = numFilters;
 		this.filterLength = filterLength;
 		this.filterWidth = filterWidth;
@@ -1223,6 +1225,7 @@ class ConvolutionLayer implements Layer {
 			return nextErrors;
 		} else {
 			double[][][] nextErrors = new double[this.inputLength][this.inputWidth][this.inputDepth];
+			
 			double [][][] dropOutFlags = this.getDropOutFlags();
 
 			if (sums != null) {
