@@ -54,7 +54,7 @@ protected static  final double  probOfKeepingShiftedTrainsetImage = (shiftProbNu
 protected static  final boolean perturbPerturbedImages            = false;
 private   static  final boolean createExtraTrainingExamples       = false;
 private   static  final boolean confusionMatricies                = true;
-public static final boolean useWideKernel = true;
+public static final boolean useWideKernel = false;
 public static final boolean useContext = false;
 public static Map<String, ArrayList<String>> mapExamples;
 public static Map<String, String> mapTrials;
@@ -159,6 +159,23 @@ public static void main(String[] args) {
 
 }
 
+public static String getType (String type) {
+	type = type.substring (type.indexOf ("-") + 1);
+	type = type.substring (0, type.indexOf ("-"));
+	if (type.contains ("manualBurst")) {
+		type = "manualBurst";
+	} else if (type.contains ("normBurst")) {
+		type = "normBurst";
+	} else if (type.contains ("shuffledBurst")) {
+		type = "shuffledBurst";
+	} else if (type.contains ("Shift")) {
+		type = "Shift";
+	} else {
+		type = "overlap";
+	}
+	return type;
+}
+
 public static void loadDataset(Vector<Example> dataset, File dir, boolean trial) {
 	int neg = 0,pos = 0;
 	for(File file : dir.listFiles()) {
@@ -167,9 +184,7 @@ public static void loadDataset(Vector<Example> dataset, File dir, boolean trial)
 			String name = file.getName ();
 			String key = name.substring (name.indexOf ("-") + 1);
 			key = key.substring (key.indexOf ("-") + 1);
-			String type = file.getName ();
-			type = type.substring (type.indexOf ("-") + 1);
-			type = type.substring (0, type.indexOf ("-"));
+			String type = getType (file.getName ());
 			int label = 0;
 			boolean goNext = false;
 			if (name.contains ("negEx")) {
@@ -773,9 +788,7 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 		}
 	}
 	for (Example example : dataset) {
-		String name = example.name;
-		name = name.substring (name.indexOf ("-") + 1);
-		name = name.substring (0, name.indexOf ("-"));
+		String name = getType (example.name);
 		int k = typesOfImages.get (name);
 		int label = network.getLabel(example.features);
 		confusionMatrix[k][label][example.label]++;
@@ -791,9 +804,7 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 	int errors[] = new int[nTypes];
 	for (Example example : dataset) {
 		int label = network.getLabel(example.features);
-		String name = example.name;
-		name = name.substring (name.indexOf ("-") + 1);
-		name = name.substring (0, name.indexOf ("-"));
+		String name = getType (example.name);
 		int type = typesOfImages.get (name);
 		counts[type] ++;
 		if (label != example.label) {
