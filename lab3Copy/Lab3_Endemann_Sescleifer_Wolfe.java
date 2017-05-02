@@ -47,8 +47,8 @@ public static int       inputVectorSize;         // The provided code uses a 1D 
 public static final boolean dropOut = false, normalizeKernelOutputByKernelSum = false; // turns dropout on/off for ALL layers (except output, of course); normalizeKernelOutputByKernelSum was to see effect of normlizign kernel's summed output by sum of kernel weights, recommended by several sources
 public static final double eta       =    0.01, fractionOfTrainingToUse = 1.00, hiddenDropoutRate = 0.0, inputDropoutRate = 0.0; // To turn off drop out, set dropoutRate to 0.0 (or a neg number).
 
-private static final int    maxEpochs = 250; // Feel free to set to a different value.
-public static final boolean printEpochErrorPercentages = false;
+private static final int    maxEpochs = 20; // Feel free to set to a different value.
+public static final boolean printEpochErrorPercentages = true;
 protected static  final double  shiftProbNumerator                = 6.0; // 6.0 is the 'default.'
 protected static  final double  probOfKeepingShiftedTrainsetImage = (shiftProbNumerator / 48.0); // This 48 is also embedded elsewhere!
 protected static  final boolean perturbPerturbedImages            = false;
@@ -57,6 +57,9 @@ private   static  final boolean confusionMatricies                = true;
 public static final boolean useContext = false;
 public static Map<String, ArrayList<String>> mapExamples;
 public static Map<String, String> mapTrials;
+public static Map<String, Integer> typesOfImages;
+public static int nTypes;
+public static ArrayList<String> typesList;
 
 public static void main(String[] args) {
 	// Check dropOut params
@@ -116,6 +119,9 @@ public static void main(String[] args) {
 	// Initializa Mapping
 	mapTrials = new HashMap<String, String> ();
 	mapExamples = new HashMap<String, ArrayList<String>> ();
+	typesOfImages = new HashMap<String, Integer> ();
+	nTypes = 0;
+	typesList = new ArrayList<String> ();
 
 	// Load in images into datasets.
 	long start = System.currentTimeMillis();
@@ -156,13 +162,20 @@ public static void loadDataset(Vector<Example> dataset, File dir, boolean trial)
 	for(File file : dir.listFiles()) {
 		try {
 			FileInputStream fis = new FileInputStream(file);
-
 			String name = file.getName ();
 			String key = name.substring (name.indexOf ("-") + 1);
 			key = key.substring (key.indexOf ("-") + 1);
+			String type = file.getName ();
+			type = type.substring (type.indexOf ("-") + 1);
+			type = type.substring (0, type.indexOf ("-"));
 			int label = 0;
 			boolean goNext = false;
 			if (name.contains ("negEx")) {
+				if (!typesOfImages.containsKey (type)) {
+					typesOfImages.put (type, nTypes);
+					nTypes ++;
+					typesList.add (type);
+				}
 				if (!mapExamples.containsKey (key)) {
 					mapExamples.put (key, new ArrayList<String> ());
 				}
@@ -172,6 +185,15 @@ public static void loadDataset(Vector<Example> dataset, File dir, boolean trial)
 					goNext = true;
 				}
 			} else if (name.contains ("posEx")) {
+				if (!typesOfImages.containsKey (name)) {
+					typesOfImages.put (name, nTypes);
+					nTypes ++;
+					typesList.add (type);
+				}
+				if (!mapExamples.containsKey (key)) {
+					mapExamples.put (key, new ArrayList<String> ());
+				}
+				mapExamples.get (key).add (name);
 				if (!trial) {
 					label = 0;
 					goNext = true;
@@ -651,14 +673,15 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 	int  trainSetError = Integer.MAX_VALUE, best_trainSetError = Integer.MAX_VALUE, tuneSetError = Integer.MAX_VALUE, best_tuneSetError = Integer.MAX_VALUE, testSetError = Integer.MAX_VALUE, best_epoch = -1, testSetErrorsAtBestTune = Integer.MAX_VALUE;
 	long overallStart   = System.currentTimeMillis(), start = overallStart;
 
-	int trainConfusion[][] = new int[2][2];
-	int tuneConfusion[][] = new int[2][2]; // Two categories, so 2x2 confusion matricies.
-		int testConfusion[][] = new int[2][2];
-		double allTrainErrors[] = new double[maxEpochs];
-		double allTuneErrors[] = new double[maxEpochs];
-		double allTestErrors[] = new double[maxEpochs];
+	int trainConfusion[][][] = new int[nTypes][2][2];
+	int tuneConfusion[][][] = new int[nTypes][2][2]; // Two categories, so 2x2 confusion matricies.
+	int testConfusion[][][] = new int[nTypes][2][2];
+	int bestTestConfusion[][][] = new int[nTypes][2][2];
+	double allTrainErrors[] = new double[maxEpochs];
+	double allTuneErrors[] = new double[maxEpochs];
+	double allTestErrors[] = new double[maxEpochs];
 
-	Map<String, Double> mapTestErrors = new HashMap<String, Double> ();
+	double mapTestErrors[] = new double[nTypes];
 
 	for (int epoch = 1; epoch <= maxEpochs /* && trainSetErrors > 0 */; epoch++) { // Might still want to train after trainset error = 0 since we want to get all predictions on the 'right side of zero' (whereas errors defined wrt HIGHEST output).
 		permute(train); // Note: this is an IN-PLACE permute, but that is OK.
@@ -690,6 +713,17 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 			testSetErrorsAtBestTune = testSetError;
 
 			deepErrors2 (test, network, mapTestErrors);
+			System.out.println("Best testset errors by categories");
+			for (int i = 0;i < nTypes;i ++) {
+				System.out.println ("'" + typesList.get (i) + "' errors = " + (mapTestErrors[i] * 100.0) + "%");
+			}
+			for (int i = 0;i < nTypes;i ++) {
+				for (int j = 0;j < 2;j ++) {
+					for (int k = 0;k < 2;k ++) {
+						bestTestConfusion[i][j][k] = testConfusion[i][j][k];
+					}
+				}
+			}
 		}
 
 		println("Done with Epoch # " + comma(epoch) + ".  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + " (" + convertMillisecondsToTimeSpan(System.currentTimeMillis() - overallStart) + " overall).");
@@ -697,6 +731,12 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 	}
 	println("\n***** Best tuneset errors = " + comma(best_tuneSetError) + " of " + comma(tune.size()) + " (" + truncate((100.0 *      best_tuneSetError) / tune.size(), 2) + "%) at epoch = " + comma(best_epoch)
 			+ " (testset errors = "    + comma(testSetErrorsAtBestTune) + " of " + comma(test.size()) + ", " + truncate((100.0 * testSetErrorsAtBestTune) / test.size(), 2) + "%).\n");
+
+	System.out.println("Best testset errors by categories");
+	for (int i = 0;i < nTypes;i ++) {
+		System.out.println ("'" + typesList.get (i) + "' errors = " + (mapTestErrors[i] * 100.0) + "%");
+	}
+	printConfusion(bestTestConfusion);
 
 	if(printEpochErrorPercentages){
 		System.out.println("Printing epoch error percentages...");
@@ -711,11 +751,6 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 		System.out.println(Arrays.toString(allTestErrors));
 	}
 
-	System.out.println("Best testset errors by categories");
-	for (Map.Entry<String, Double> entry : mapTestErrors.entrySet ()) {
-		System.out.println ("'" + entry.getKey () + "' errors = " + (entry.getValue () * 100.0) + "%");
-	}
-
 	return testSetErrorsAtBestTune;
 }
 
@@ -725,14 +760,20 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
  * @param network DeepNet used to predict classes.
  * @return The number of correctly classified examples.
  */
- private static int deepErrors(Vector<Example> dataset, DeepNet network, int[][] confusionMatrix) {
+ private static int deepErrors(Vector<Example> dataset, DeepNet network, int[][][] confusionMatrix) {
 	int errors = 0;
-	for (int i = 0; i < confusionMatrix.length; i++) {
-		Arrays.fill(confusionMatrix[i],0);
+	for (int k = 0;k < nTypes;k ++) {
+		for (int i = 0; i < confusionMatrix[k].length; i++) {
+			Arrays.fill(confusionMatrix[k][i],0);
+		}
 	}
 	for (Example example : dataset) {
+		String name = example.name;
+		name = name.substring (name.indexOf ("-") + 1);
+		name = name.substring (0, name.indexOf ("-"));
+		int k = typesOfImages.get (name);
 		int label = network.getLabel(example.features);
-		confusionMatrix[label][example.label]++;
+		confusionMatrix[k][label][example.label]++;
 		if (label != example.label) {
 			errors++;
 		}
@@ -740,46 +781,34 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 	return errors;
 }
 
- private static void deepErrors2(Vector<Example> dataset, DeepNet network, Map<String, Double> mapLoss) {
-	mapLoss.clear ();
-	Map<String, Double> mapCounts = new HashMap<String, Double> ();
-	Map<String, Double> mapErrors = new HashMap<String, Double> ();
-	int errors = 0;
+ private static void deepErrors2(Vector<Example> dataset, DeepNet network, double[] mapLoss) {
+	int counts[] = new int[nTypes];
+	int errors[] = new int[nTypes];
 	for (Example example : dataset) {
 		int label = network.getLabel(example.features);
 		String name = example.name;
 		name = name.substring (name.indexOf ("-") + 1);
 		name = name.substring (0, name.indexOf ("-"));
-		double count = 0;
-		if (mapCounts.containsKey (name)) {
-			count = mapCounts.get (name);
-			mapCounts.remove (name);
-		}
-		count += 1;
-		mapCounts.put (name, count);
-		double error = 0;
-		if (mapErrors.containsKey (name)) {
-			error = mapErrors.get (name);
-			mapErrors.remove (name);
-		}
+		int type = typesOfImages.get (name);
+		counts[type] ++;
 		if (label != example.label) {
-			error ++;
+			errors[type] ++;
 		}
-		mapErrors.put (name, error);
 	}
-	for (Map.Entry<String, Double> entry : mapCounts.entrySet ()) {
-		mapLoss.put (entry.getKey (), mapErrors.get (entry.getKey ()) / entry.getValue ());
+	for (int i = 0;i < nTypes;i ++) {
+		mapLoss[i] = (1.0 * errors[i]) / counts[i];
 	}
-	mapCounts.clear ();
-	mapErrors.clear ();
 }
 
-private static void printConfusion(int[][] confusion) {
-	for (int i = 0; i < confusion.length; i++) {
-		for (int j = 0; j < confusion[i].length; j++) {
-			print(String.format("%3d ", confusion[i][j]));
+private static void printConfusion(int[][][] confusion) {
+	for (int k = 0;k < nTypes;k ++) {
+		println ("Type:" + typesList.get (k));
+		for (int i = 0; i < confusion[k].length; i++) {
+			for (int j = 0; j < confusion[k][i].length; j++) {
+				print(String.format("%3d ", confusion[k][i][j]));
+			}
+			println();
 		}
-		println();
 	}
 }
 
