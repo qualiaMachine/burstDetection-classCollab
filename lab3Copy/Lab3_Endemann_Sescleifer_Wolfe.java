@@ -54,7 +54,7 @@ protected static  final double  probOfKeepingShiftedTrainsetImage = (shiftProbNu
 protected static  final boolean perturbPerturbedImages            = false;
 private   static  final boolean createExtraTrainingExamples       = false;
 private   static  final boolean confusionMatricies                = true;
-public static final boolean useWideKernel = true;
+public static final boolean useWideKernel = false;
 public static final boolean useContext = false;
 public static Map<String, ArrayList<String>> mapExamples;
 public static Map<String, String> mapTrials;
