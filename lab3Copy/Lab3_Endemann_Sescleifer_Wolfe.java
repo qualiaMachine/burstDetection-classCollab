@@ -54,6 +54,7 @@ protected static  final double  probOfKeepingShiftedTrainsetImage = (shiftProbNu
 protected static  final boolean perturbPerturbedImages            = false;
 private   static  final boolean createExtraTrainingExamples       = false;
 private   static  final boolean confusionMatricies                = true;
+public static final boolean useWideKernel = true;
 public static final boolean useContext = false;
 public static Map<String, ArrayList<String>> mapExamples;
 public static Map<String, String> mapTrials;
@@ -159,6 +160,7 @@ public static void main(String[] args) {
 }
 
 public static void loadDataset(Vector<Example> dataset, File dir, boolean trial) {
+	int neg = 0,pos = 0;
 	for(File file : dir.listFiles()) {
 		try {
 			FileInputStream fis = new FileInputStream(file);
@@ -171,6 +173,7 @@ public static void loadDataset(Vector<Example> dataset, File dir, boolean trial)
 			int label = 0;
 			boolean goNext = false;
 			if (name.contains ("negEx")) {
+				neg ++;
 				if (!typesOfImages.containsKey (type)) {
 					typesOfImages.put (type, nTypes);
 					nTypes ++;
@@ -185,6 +188,7 @@ public static void loadDataset(Vector<Example> dataset, File dir, boolean trial)
 					goNext = true;
 				}
 			} else if (name.contains ("posEx")) {
+				pos ++;
 				if (!typesOfImages.containsKey (name)) {
 					typesOfImages.put (name, nTypes);
 					nTypes ++;
@@ -233,6 +237,7 @@ public static void loadDataset(Vector<Example> dataset, File dir, boolean trial)
 			fis.close ();
 		} catch (Exception e) { }
 	}
+	System.out.println ("Contain " + pos + " positive inputs and " + neg + " negative inputs");
 
 	// for(File file : dir.listFiles()) {
 	// 	// check all files
@@ -961,7 +966,9 @@ class DeepNet {
 		this.layers.add(new PoolLayer(6,172, 16,2,dropOut));
 		this.layers.add(new FullyConnectedLayer(3, 86, 16, 128,dropOut,layers.get(3)));// **may want to test out varying #nodes in fully connected layer
 		this.layers.add(new FullyConnectedLayer(128, 1, 1, 2,dropOut,layers.get(4)));
-		wideKernel = new FullyConnectedLayer(19, 351, 1, Lab3_Endemann_Sescleifer_Wolfe.wideKernelSize,dropOut,null);
+		if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel) {
+			wideKernel = new FullyConnectedLayer(19, 351, 1, Lab3_Endemann_Sescleifer_Wolfe.wideKernelSize,dropOut,null);
+		}
 		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
 			this.contextlayers.add(new ConvolutionLayer(19, 1750, Lab3_Endemann_Sescleifer_Wolfe.unitsPerPixel, 8, 2,51,dropOut,normalizeKernelOutputByKernelSum));
 			this.contextlayers.add(new PoolLayer(18,1700, 8,2,dropOut));// ***may want to test out different numFilters
@@ -984,12 +991,14 @@ class DeepNet {
 
 	public void feedforward(double[][][] image) {
 //	        System.out.println(image.length+" "+image[1].length+" "+image[0][1].length);
-		wideKernel.feedforward (image);
+		if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel) {
+			wideKernel.feedforward (image);
+		}
 		Layer layer = layers.get(0);
 		layer.feedforward(image);
 		for (int i = 1; i < layers.size(); i++) {
 			Layer nextLayer = layers.get(i);
-			if (i == 4) {
+			if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel && i == 4) {
 				nextLayer.feedforward2 (layer.getOutputs (), wideKernel.getOutputs ());
 			} else {
 				nextLayer.feedforward(layer.getOutputs());
@@ -1053,7 +1062,7 @@ class DeepNet {
 			Layer layer = layers.get(i);
 			if (i > 0) {
 				Layer nextLayer = layers.get(i - 1);
-				if (i == 4) {
+				if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel && i == 4) {
 					errors2 = layer.backprop2 (errors, wideKernel.getSums ());
 				}
 				errors = layer.backprop(errors, nextLayer.getSums());
@@ -1061,7 +1070,7 @@ class DeepNet {
 				errors = layer.backprop(errors, null);
 			}
 		}
-		if (errors2 != null) {
+		if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel && errors2 != null) {
 			wideKernel.backprop (errors2, null);
 		}
 		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
