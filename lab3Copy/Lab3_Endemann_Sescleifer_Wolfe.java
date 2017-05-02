@@ -189,8 +189,8 @@ public static void loadDataset(Vector<Example> dataset, File dir, boolean trial)
 				}
 			} else if (name.contains ("posEx")) {
 				pos ++;
-				if (!typesOfImages.containsKey (name)) {
-					typesOfImages.put (name, nTypes);
+				if (!typesOfImages.containsKey (type)) {
+					typesOfImages.put (type, nTypes);
 					nTypes ++;
 					typesList.add (type);
 				}
