@@ -73,9 +73,9 @@ public static void main(String[] args) {
 	}
 
 
-	String trainDirectory = "../trainTuneTestTrialDataUsedForPresentation/trainTuneTestTrialDataUsedForPresentation/train/";
-	String  tuneDirectory = "../trainTuneTestTrialDataUsedForPresentation/trainTuneTestTrialDataUsedForPresentation/tune/";
-	String  testDirectory = "../trainTuneTestTrialDataUsedForPresentation/trainTuneTestTrialDataUsedForPresentation/test/";
+	String trainDirectory = "../trainTuneTestTrialDataUsedForPresentation/train/";
+	String  tuneDirectory = "../trainTuneTestTrialDataUsedForPresentation/tune/";
+	String  testDirectory = "../trainTuneTestTrialDataUsedForPresentation/test/";
 
 	if(args.length > 6) {
 		System.err.println("Usage error: java Lab3_Endemann_Sescleifer_Wolfe <train_set_folder_path> <tune_set_folder_path> <test_set_foler_path> <imageWidth> <imageHeight>");
