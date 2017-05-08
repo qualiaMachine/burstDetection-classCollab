@@ -48,7 +48,7 @@ public static int       inputVectorSize;         // The provided code uses a 1D 
 public static final boolean dropOut = false, normalizeKernelOutputByKernelSum = false; // turns dropout on/off for ALL layers (except output, of course); normalizeKernelOutputByKernelSum was to see effect of normlizign kernel's summed output by sum of kernel weights, recommended by several sources
 public static double eta       =    0.01, fractionOfTrainingToUse = 1.00, hiddenDropoutRate = 0.0, inputDropoutRate = 0.0; // To turn off drop out, set dropoutRate to 0.0 (or a neg number).
 
-private static final int    maxEpochs = 1; // Feel free to set to a different value.
+private static int    maxEpochs = 100; // Feel free to set to a different value.
 public static final boolean printEpochErrorPercentages = true;
 protected static  final double  shiftProbNumerator                = 6.0; // 6.0 is the 'default.'
 protected static  final double  probOfKeepingShiftedTrainsetImage = (shiftProbNumerator / 48.0); // This 48 is also embedded elsewhere!
@@ -72,8 +72,8 @@ public static void main(String[] args) {
 		System.exit(1);
 	}
 
-	if(args.length > 4) {
-		System.err.println("Usage error: java Lab3_Endemann_Sescleifer_Wolfe setTypes exTypes wideKernel eta");
+	if(args.length > 5) {
+		System.err.println("Usage error: java Lab3_Endemann_Sescleifer_Wolfe setTypes exTypes wideKernel maxEpochs eta");
 		System.exit(1);
 	}
 
@@ -89,7 +89,8 @@ public static void main(String[] args) {
 			useWideKernel = true;
 		}
 	}
-	if (args.length >= 4) {  eta     = Double.parseDouble(args[3]); }
+	if (args.length >= 4) {  maxEpochs     = Integer.parseInt(args[3]); }
+	if (args.length >= 5) {  eta     = Double.parseDouble(args[4]); }
 
 	if(dropOut){
 		System.out.println("Note: Dropout is on for all layers except output.");
