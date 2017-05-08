@@ -34,6 +34,7 @@ public class Lab3_Endemann_Sescleifer_Wolfe {
 public static int     imageWidth = 351, imageHeight = 19; // Images are imageSize x imageSize.  The provided data is 128x128, but this can be resized by setting this value (or passing in an argument).
 										 // You might want to resize to 8x8, 16x16, 32x32, or 64x64; this can reduce your network size and speed up debugging runs.
 										 // ALL IMAGES IN A TRAINING RUN SHOULD BE THE *SAME* SIZE.
+public static int     imageContextWidth = 1750;
 public static int 		wideKernelSize = 10;
 private static enum    Category { positive, negative };  // We'll hardwire these in, but more robust code would not do so.
 
@@ -45,22 +46,21 @@ public static int       inputVectorSize;         // The provided code uses a 1D 
 													// Or use the get2DfeatureValue() 'accessor function' that maps 2D coordinates into the 1D vector.
 													// The last element in this vector holds the 'teacher-provided' label of the example.
 public static final boolean dropOut = false, normalizeKernelOutputByKernelSum = false; // turns dropout on/off for ALL layers (except output, of course); normalizeKernelOutputByKernelSum was to see effect of normlizign kernel's summed output by sum of kernel weights, recommended by several sources
-public static final double eta       =    0.01, fractionOfTrainingToUse = 1.00, hiddenDropoutRate = 0.0, inputDropoutRate = 0.0; // To turn off drop out, set dropoutRate to 0.0 (or a neg number).
+public static double eta       =    0.01, fractionOfTrainingToUse = 1.00, hiddenDropoutRate = 0.0, inputDropoutRate = 0.0; // To turn off drop out, set dropoutRate to 0.0 (or a neg number).
 
-private static final int    maxEpochs = 20; // Feel free to set to a different value.
+private static final int    maxEpochs = 1; // Feel free to set to a different value.
 public static final boolean printEpochErrorPercentages = true;
 protected static  final double  shiftProbNumerator                = 6.0; // 6.0 is the 'default.'
 protected static  final double  probOfKeepingShiftedTrainsetImage = (shiftProbNumerator / 48.0); // This 48 is also embedded elsewhere!
 protected static  final boolean perturbPerturbedImages            = false;
 private   static  final boolean createExtraTrainingExamples       = false;
 private   static  final boolean confusionMatricies                = true;
-public static final boolean useWideKernel = true;
-public static final boolean useContext = false;
-public static Map<String, ArrayList<String>> mapExamples;
-public static Map<String, String> mapTrials;
+public static boolean useWideKernel = false;
+public static boolean useContext = false;
 public static Map<String, Integer> typesOfImages;
 public static int nTypes;
 public static ArrayList<String> typesList;
+public static String setTypes = "default",exTypes = "noContextExs";
 
 public static void main(String[] args) {
 	// Check dropOut params
@@ -72,15 +72,25 @@ public static void main(String[] args) {
 		System.exit(1);
 	}
 
-
-	String trainDirectory = "../trainTuneTestTrialDataUsedForPresentation/train/";
-	String  tuneDirectory = "../trainTuneTestTrialDataUsedForPresentation/tune/";
-	String  testDirectory = "../trainTuneTestTrialDataUsedForPresentation/test/";
-
-	if(args.length > 6) {
-		System.err.println("Usage error: java Lab3_Endemann_Sescleifer_Wolfe <train_set_folder_path> <tune_set_folder_path> <test_set_foler_path> <imageWidth> <imageHeight>");
+	if(args.length > 4) {
+		System.err.println("Usage error: java Lab3_Endemann_Sescleifer_Wolfe setTypes exTypes wideKernel eta");
 		System.exit(1);
 	}
+
+	if (args.length >= 1) {  setTypes = args[0]; }
+	if (args.length >= 2) {
+		exTypes = args[1];
+		if (args[1].equals ("contextExs")) {
+			useContext = true;
+		}
+	}
+	if (args.length >= 3) {
+		if (args[2].equals ("true")) {
+			useWideKernel = true;
+		}
+	}
+	if (args.length >= 4) {  eta     = Double.parseDouble(args[3]); }
+
 	if(dropOut){
 		System.out.println("Note: Dropout is on for all layers except output.");
 		System.out.println("inputDropoutRate = " + inputDropoutRate);
@@ -93,16 +103,15 @@ public static void main(String[] args) {
 	System.out.println("maxEpochs = " + maxEpochs);
 	System.out.println("fractionOfTrainingToUse = " + fractionOfTrainingToUse);
 	System.out.println("eta = " + eta);
+	System.out.println("setTypes = " + setTypes);
+	System.out.println("exTypes = " + exTypes);
+	System.out.println("useWideKernel = " + useWideKernel);
+	System.out.println();
+	
+	String trainDirectory = "../allProjectTrainTestTuneSets-zipped/" + setTypes + "/train/" + exTypes;
+	String  tuneDirectory = "../allProjectTrainTestTuneSets-zipped/" + setTypes + "/tune/" + exTypes;
+	String  testDirectory = "../allProjectTrainTestTuneSets-zipped/" + setTypes + "/test/" + exTypes;
 
-
-
-
-
-	if (args.length >= 1) { trainDirectory = args[0]; }
-	if (args.length >= 2) {  tuneDirectory = args[1]; }
-	if (args.length >= 3) {  testDirectory = args[2]; }
-	if (args.length >= 4) {  imageWidth     = Integer.parseInt(args[3]); }
-	if (args.length >= 5) {  imageHeight     = Integer.parseInt(args[4]); }
 
 	// Here are statements with the absolute path to open images folder
 	File trainsetDir = new File(trainDirectory);
@@ -118,24 +127,22 @@ public static void main(String[] args) {
 	Vector<Example>  testset = new Vector<Example>();
 
 	// Initializa Mapping
-	mapTrials = new HashMap<String, String> ();
-	mapExamples = new HashMap<String, ArrayList<String>> ();
 	typesOfImages = new HashMap<String, Integer> ();
 	nTypes = 0;
 	typesList = new ArrayList<String> ();
 
 	// Load in images into datasets.
 	long start = System.currentTimeMillis();
-	loadDataset(trainset, trainsetDir, useContext);
+	loadDataset(trainset, trainsetDir);
 	System.out.println("The trainset contains " + comma(trainset.size()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
 	start = System.currentTimeMillis();
-	loadDataset(tuneset, tunesetDir, useContext);
-	System.out.println("The testset contains " + comma( tuneset.size()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
+	loadDataset(tuneset, tunesetDir);
+	System.out.println("The tuneset contains " + comma( tuneset.size()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
 	start = System.currentTimeMillis();
-	loadDataset(testset, testsetDir, useContext);
-	System.out.println("The tuneset contains " + comma( testset.size()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
+	loadDataset(testset, testsetDir);
+	System.out.println("The testset contains " + comma( testset.size()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
 	createDribbleFile("results/"
 			+ modelToUse
@@ -160,132 +167,85 @@ public static void main(String[] args) {
 }
 
 public static String getType (String type) {
-	type = type.substring (type.indexOf ("-") + 1);
-	type = type.substring (0, type.indexOf ("-"));
-	if (type.contains ("manualBurst")) {
-		type = "manualBurst";
-	} else if (type.contains ("normBurst")) {
-		type = "normBurst";
-	} else if (type.contains ("shuffledBurst")) {
-		type = "shuffledBurst";
-	} else if (type.contains ("Shift")) {
-		type = "Shift";
+	String ret = type.substring (type.indexOf ("-") + 1);
+	ret = ret.substring (0, ret.indexOf ("-")).trim ();
+	if (ret.contains ("normBurst")) {
+		ret = "normBurst";
+	} else if (ret.contains ("shuffledBurst")) {
+		ret = "shuffled";
+	} else if (ret.contains ("Shift")) {
+		String ext = ret.substring (ret.indexOf ("shiftSize") + 9);
+		ret = "shift" + ext;
 	} else {
-		type = "overlap";
+		int id1 = type.indexOf ("-");
+		int id2 = type.substring (id1 + 1).indexOf ("-") + id1 + 1;
+		int id = type.substring (id2 + 1).indexOf ("bursts") + id2 + 1;
+		int id3 = type.substring (id2 + 1).indexOf ("-") + id2 + 1;
+		int id4 = type.substring (id3 + 1).indexOf ("-") + id3 + 1;
+		int id5 = type.substring (id4 + 1).indexOf ("-") + id4 + 1;
+		ret = type.substring (id2 + 1, id).trim () + type.substring (id4 + 1, id5).trim ();
 	}
-	return type;
+	return ret;
 }
 
-public static void loadDataset(Vector<Example> dataset, File dir, boolean trial) {
+public static void loadDataset(Vector<Example> dataset, File dir) {
 	int neg = 0,pos = 0;
 	for(File file : dir.listFiles()) {
 		try {
 			FileInputStream fis = new FileInputStream(file);
 			String name = file.getName ();
-			String key = name.substring (name.indexOf ("-") + 1);
-			key = key.substring (key.indexOf ("-") + 1);
 			String type = getType (file.getName ());
 			int label = 0;
 			boolean goNext = false;
-			if (name.contains ("negEx")) {
+			if (name.contains ("negEx") || name.contains ("NegEx")) {
 				neg ++;
 				if (!typesOfImages.containsKey (type)) {
 					typesOfImages.put (type, nTypes);
 					nTypes ++;
 					typesList.add (type);
 				}
-				if (!mapExamples.containsKey (key)) {
-					mapExamples.put (key, new ArrayList<String> ());
-				}
-				mapExamples.get (key).add (name);
-				if (!trial) {
-					label = 1;
-					goNext = true;
-				}
-			} else if (name.contains ("posEx")) {
+				label = 1;
+			} else if (name.contains ("posEx") || name.contains ("PosEx")) {
 				pos ++;
 				if (!typesOfImages.containsKey (type)) {
 					typesOfImages.put (type, nTypes);
 					nTypes ++;
 					typesList.add (type);
 				}
-				if (!mapExamples.containsKey (key)) {
-					mapExamples.put (key, new ArrayList<String> ());
-				}
-				mapExamples.get (key).add (name);
-				if (!trial) {
-					label = 0;
-					goNext = true;
-				}
+				label = 0;
+			}
+
+			double[][][] features;
+			if (useContext) {
+				features = new double[imageHeight][imageContextWidth][unitsPerPixel];
 			} else {
-				if (trial) {
-					goNext = true;
-				}
-				mapTrials.put (name, key);
+				features = new double[imageHeight][imageWidth][unitsPerPixel];
 			}
 
-			if (goNext) {
-				double[][][] features = new double[imageHeight][imageWidth][unitsPerPixel];
-
-				int content;
-				int i = 0,j = 0;
-				while ((content = fis.read()) != -1) {
-					if ((char) content == '0') {
-						for (int k = 0;k < unitsPerPixel;k ++) {
-							features[i][j][k] = 0;
-						}
-						j ++;
-					} else if ((char) content == '1') {
-						for (int k = 0;k < unitsPerPixel;k ++) {
-							features[i][j][k] = 1;
-						}
-						j ++;
-					} else if ((char) content == '\n') {
-						i ++;
-						j = 0;
+			int content;
+			int i = 0,j = 0;
+			while ((content = fis.read()) != -1) {
+				if ((char) content == '0') {
+					for (int k = 0;k < unitsPerPixel;k ++) {
+						features[i][j][k] = 0;
 					}
+					j ++;
+				} else if ((char) content == '1') {
+					for (int k = 0;k < unitsPerPixel;k ++) {
+						features[i][j][k] = 1;
+					}
+					j ++;
+				} else if ((char) content == '\n') {
+					i ++;
+					j = 0;
 				}
-
-				dataset.add (new Example (features, label, name));
 			}
 
+			dataset.add (new Example (features, label, name));
 			fis.close ();
 		} catch (Exception e) { }
 	}
 	System.out.println ("Contain " + pos + " positive inputs and " + neg + " negative inputs");
-
-	// for(File file : dir.listFiles()) {
-	// 	// check all files
-	// 	 if(!file.isFile() || !file.getName().endsWith(".jpg")) {
-	// 		continue;
-	// 	}
-	// 	//String path = file.getAbsolutePath();
-	// 	BufferedImage img = null, scaledBI = null;
-	// 	try {
-	// 		// load in all images
-	// 		img = ImageIO.read(file);
-	// 		img = img.getSubimage (470, 30, 256, 760);
-
-	// 		// every image's name is in such format:
-	// 		// label_image_XXXX(4 digits) though this code could handle more than 4 digits.
-	// 		String name = file.getName();
-	// 		int locationOfUnderscoreImage = name.indexOf("_image");
-
-	// 		// Resize the image if requested.  Any resizing allowed, but should really be one of 8x8, 16x16, 32x32, or 64x64 (original data is 128x128).
-	// 		scaledBI = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_RGB);
-	// 		Graphics2D g = scaledBI.createGraphics();
-	// 		g.drawImage(img, 0, 0, imageWidth, imageHeight, null);
-	// 		g.dispose();
-
-	// 		//Instance instance = new Instance(scaledBI == null ? img : scaledBI, name.substring(0, locationOfUnderscoreImage));
-	// 		Instance instance = new Instance(scaledBI == null ? img : scaledBI, name, "positive");//name.substring(0, locationOfUnderscoreImage));
-
-	// 		dataset.add(instance);
-	// 	} catch (IOException e) {
-	// 		System.err.println("Error: cannot load in the image file");
-	// 		System.exit(1);
-	// 	}
-	// }
 }
 
 /**
@@ -971,22 +931,26 @@ class DeepNet {
 //			this.doneTraining = false; // necessary for implementing dropout
 
 		// First boolean argument added to signify that layer should dropout (if dropout is on) input to layer
-		this.layers.add(new ConvolutionLayer(19,351, Lab3_Endemann_Sescleifer_Wolfe.unitsPerPixel, 8, 4,dropOut,normalizeKernelOutputByKernelSum));
-		this.layers.add(new PoolLayer(16,348,8,2,dropOut));// ***may want to test out different numFilters
-		this.layers.add(new ConvolutionLayer(8,174, 8, 16, 3,dropOut,normalizeKernelOutputByKernelSum));
-		this.layers.add(new PoolLayer(6,172, 16,2,dropOut));
-		this.layers.add(new FullyConnectedLayer(3, 86, 16, 128,dropOut,layers.get(3)));// **may want to test out varying #nodes in fully connected layer
-		this.layers.add(new FullyConnectedLayer(128, 1, 1, 2,dropOut,layers.get(4)));
-		if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel) {
-			wideKernel = new FullyConnectedLayer(19, 351, 1, Lab3_Endemann_Sescleifer_Wolfe.wideKernelSize,dropOut,null);
-		}
 		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
 			this.contextlayers.add(new ConvolutionLayer(19, 1750, Lab3_Endemann_Sescleifer_Wolfe.unitsPerPixel, 8, 2,51,dropOut,normalizeKernelOutputByKernelSum));
 			this.contextlayers.add(new PoolLayer(18,1700, 8,2,dropOut));// ***may want to test out different numFilters
 			this.contextlayers.add(new ConvolutionLayer(9,850, 8, 16, 2,51,dropOut,normalizeKernelOutputByKernelSum));
 			this.contextlayers.add(new PoolLayer(8,800, 16,4,dropOut));
-			this.contextlayers.add(new FullyConnectedLayer(2, 200, 16, 32,dropOut,layers.get(3)));// **may want to test out varying #nodes in fully connected layer
-			this.contextlayers.add(new FullyConnectedLayer(32, 1, 1, 2,dropOut,layers.get(4)));
+			this.contextlayers.add(new FullyConnectedLayer(2, 200, 16, 32,dropOut,contextlayers.get(3)));// **may want to test out varying #nodes in fully connected layer
+			this.contextlayers.add(new FullyConnectedLayer(32, 1, 1, 2,dropOut,contextlayers.get(4)));
+			if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel) {
+				wideKernel = new FullyConnectedLayer(19, 1750, 1, Lab3_Endemann_Sescleifer_Wolfe.wideKernelSize,dropOut,null);
+			}
+		} else {
+			this.layers.add(new ConvolutionLayer(19,351, Lab3_Endemann_Sescleifer_Wolfe.unitsPerPixel, 8, 4,dropOut,normalizeKernelOutputByKernelSum));
+			this.layers.add(new PoolLayer(16,348,8,2,dropOut));// ***may want to test out different numFilters
+			this.layers.add(new ConvolutionLayer(8,174, 8, 16, 3,dropOut,normalizeKernelOutputByKernelSum));
+			this.layers.add(new PoolLayer(6,172, 16,2,dropOut));
+			this.layers.add(new FullyConnectedLayer(3, 86, 16, 128,dropOut,layers.get(3)));// **may want to test out varying #nodes in fully connected layer
+			this.layers.add(new FullyConnectedLayer(128, 1, 1, 2,dropOut,layers.get(4)));
+			if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel) {
+				wideKernel = new FullyConnectedLayer(19, 351, 1, Lab3_Endemann_Sescleifer_Wolfe.wideKernelSize,dropOut,null);
+			}
 		}
 		this.doneTraining = false; // necessary for implementing dropout
 
@@ -1005,26 +969,31 @@ class DeepNet {
 		if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel) {
 			wideKernel.feedforward (image);
 		}
-		Layer layer = layers.get(0);
-		layer.feedforward(image);
-		for (int i = 1; i < layers.size(); i++) {
-			Layer nextLayer = layers.get(i);
-			if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel && i == 4) {
-				nextLayer.feedforward2 (layer.getOutputs (), wideKernel.getOutputs ());
-			} else {
-				nextLayer.feedforward(layer.getOutputs());
-			}
-			if (nextLayer instanceof PoolLayer) {
-				((PoolLayer) nextLayer).setSums(layer.getSums());
-			}
-			layer = nextLayer;
-		}
 		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
-			layer = contextlayers.get(0);
+			Layer layer = contextlayers.get(0);
 			layer.feedforward(image);
 			for (int i = 1; i < contextlayers.size(); i++) {
 				Layer nextLayer = contextlayers.get(i);
-				nextLayer.feedforward(layer.getOutputs());
+				if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel && i == 4) {
+					nextLayer.feedforward2 (layer.getOutputs (), wideKernel.getOutputs ());
+				} else {
+					nextLayer.feedforward(layer.getOutputs());
+				}
+				if (nextLayer instanceof PoolLayer) {
+					((PoolLayer) nextLayer).setSums(layer.getSums());
+				}
+				layer = nextLayer;
+			}
+		} else {
+			Layer layer = layers.get(0);
+			layer.feedforward(image);
+			for (int i = 1; i < layers.size(); i++) {
+				Layer nextLayer = layers.get(i);
+				if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel && i == 4) {
+					nextLayer.feedforward2 (layer.getOutputs (), wideKernel.getOutputs ());
+				} else {
+					nextLayer.feedforward(layer.getOutputs());
+				}
 				if (nextLayer instanceof PoolLayer) {
 					((PoolLayer) nextLayer).setSums(layer.getSums());
 				}
@@ -1044,55 +1013,57 @@ class DeepNet {
 
 		// Calculate error
 		// 6x1x1 array holding the activations of the last layer
-		Layer lastLayer = this.layers.get(this.layers.size() - 1);
-		Layer contextlastLayer = null;
 		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
-			contextlastLayer = this.contextlayers.get(this.contextlayers.size() - 1);
-		}
-		double[][][] outputs = lastLayer.getOutputs();
-		double[][][] contextoutputs = null;
-		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
-			contextlastLayer.getOutputs();
-		}
-		double[][][] errors = new double[2][1][1];
-		double[][][] errors2 = null;
-		double[][][] contexterrors = new double[2][1][1];
-		for (int i = 0; i < 2; i++) {
-			double expected = (label == i) ? 1 : 0;
-			errors[i][0][0] = outputs[i][0][0] - expected;
-		}
-		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
+			Layer contextlastLayer = this.contextlayers.get(this.contextlayers.size() - 1);
+			double[][][] contextoutputs = contextlastLayer.getOutputs();
+			double[][][] contexterrors = new double[2][1][1];
+			double[][][] errors2 = null;
 			for (int i = 0; i < 2; i++) {
 				double expected = (label == i) ? 1 : 0;
 				contexterrors[i][0][0] = contextoutputs[i][0][0] - expected;
 			}
-		}
 
-		// Backpropagate error, starting with output layer
-		for (int i = layers.size() - 1; i >= 0; i--) {
-			Layer layer = layers.get(i);
-			if (i > 0) {
-				Layer nextLayer = layers.get(i - 1);
-				if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel && i == 4) {
-					errors2 = layer.backprop2 (errors, wideKernel.getSums ());
-				}
-				errors = layer.backprop(errors, nextLayer.getSums());
-			} else {
-				errors = layer.backprop(errors, null);
-			}
-		}
-		if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel && errors2 != null) {
-			wideKernel.backprop (errors2, null);
-		}
-		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
+			// Backpropagate error, starting with output layer
 			for (int i = contextlayers.size() - 1; i >= 0; i--) {
 				Layer layer = contextlayers.get(i);
 				if (i > 0) {
 					Layer nextLayer = contextlayers.get(i - 1);
+					if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel && i == 4) {
+						errors2 = layer.backprop2 (contexterrors, wideKernel.getSums ());
+					}
 					contexterrors = layer.backprop(contexterrors, nextLayer.getSums());
 				} else {
 					contexterrors = layer.backprop(contexterrors, null);
 				}
+			}
+			if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel && errors2 != null) {
+				wideKernel.backprop (errors2, null);
+			}
+		} else {
+			Layer lastLayer = this.layers.get(this.layers.size() - 1);
+			double[][][] outputs = lastLayer.getOutputs();
+			double[][][] errors = new double[2][1][1];
+			double[][][] errors2 = null;
+			for (int i = 0; i < 2; i++) {
+				double expected = (label == i) ? 1 : 0;
+				errors[i][0][0] = outputs[i][0][0] - expected;
+			}
+
+			// Backpropagate error, starting with output layer
+			for (int i = layers.size() - 1; i >= 0; i--) {
+				Layer layer = layers.get(i);
+				if (i > 0) {
+					Layer nextLayer = layers.get(i - 1);
+					if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel && i == 4) {
+						errors2 = layer.backprop2 (errors, wideKernel.getSums ());
+					}
+					errors = layer.backprop(errors, nextLayer.getSums());
+				} else {
+					errors = layer.backprop(errors, null);
+				}
+			}
+			if (Lab3_Endemann_Sescleifer_Wolfe.useWideKernel && errors2 != null) {
+				wideKernel.backprop (errors2, null);
 			}
 		}
 	}
@@ -1101,21 +1072,19 @@ class DeepNet {
 		this.doneTraining = true;
 		this.feedforward(image);
 
-		Layer lastLayer = this.layers.get(this.layers.size() - 1);
-
-		// Calculate error
-		// 6x1x1 array holding the activations of the last layer
-		double[][][] outputs = lastLayer.getOutputs();
 		int maxIndex = 0;
 		if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
 			Layer contextlastLayer = this.contextlayers.get(this.contextlayers.size() - 1);
 			double[][][] contextoutputs = contextlastLayer.getOutputs();
 			for (int i = 1; i < 2; i++) {
-				if (outputs[i][0][0] + (contextrate)*contextoutputs[i][0][0]> outputs[maxIndex][0][0]+ (contextrate)*contextoutputs[maxIndex][0][0]) {
+				if (contextoutputs[i][0][0] > contextoutputs[maxIndex][0][0]) {
 					maxIndex = i;
 				}
 			}
 		} else {
+			Layer lastLayer = this.layers.get(this.layers.size() - 1);
+			double[][][] outputs = lastLayer.getOutputs();
+
 			for (int i = 1; i < 2; i++) {
 				if (outputs[i][0][0] > outputs[maxIndex][0][0]) {
 					maxIndex = i;
