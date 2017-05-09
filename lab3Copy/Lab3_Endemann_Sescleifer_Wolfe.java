@@ -109,9 +109,9 @@ public static void main(String[] args) {
 	System.out.println("useWideKernel = " + useWideKernel);
 	System.out.println();
 	
-	String trainDirectory = "../allProjectTrainTestTuneSets-zipped/" + setTypes + "/train/" + exTypes;
-	String  tuneDirectory = "../allProjectTrainTestTuneSets-zipped/" + setTypes + "/tune/" + exTypes;
-	String  testDirectory = "../allProjectTrainTestTuneSets-zipped/" + setTypes + "/test/" + exTypes;
+	String trainDirectory = "../allProjectTrainTestTuneSets-zipped/" + setTypes + "/train/" + exTypes + "/";
+	String  tuneDirectory = "../allProjectTrainTestTuneSets-zipped/" + setTypes + "/tune/" + exTypes + "/";
+	String  testDirectory = "../allProjectTrainTestTuneSets-zipped/" + setTypes + "/test/" + exTypes + "/";
 
 
 	// Here are statements with the absolute path to open images folder
@@ -134,15 +134,15 @@ public static void main(String[] args) {
 
 	// Load in images into datasets.
 	long start = System.currentTimeMillis();
-	loadDataset(trainset, trainsetDir);
+	loadDataset(trainset, trainsetDir, trainDirectory);
 	System.out.println("The trainset contains " + comma(trainset.size()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
 	start = System.currentTimeMillis();
-	loadDataset(tuneset, tunesetDir);
+	loadDataset(tuneset, tunesetDir, tuneDirectory);
 	System.out.println("The tuneset contains " + comma( tuneset.size()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
 	start = System.currentTimeMillis();
-	loadDataset(testset, testsetDir);
+	loadDataset(testset, testsetDir, testDirectory);
 	System.out.println("The testset contains " + comma( testset.size()) + " examples.  Took " + convertMillisecondsToTimeSpan(System.currentTimeMillis() - start) + ".");
 
 	createDribbleFile("results/"
@@ -189,15 +189,15 @@ public static String getType (String type) {
 	return ret;
 }
 
-public static void loadDataset(Vector<Example> dataset, File dir) {
+public static void loadDataset(Vector<Example> dataset, File dir, String path) {
 	int neg = 0,pos = 0;
+	String name = null;
 	for(File file : dir.listFiles()) {
 		try {
 			FileInputStream fis = new FileInputStream(file);
-			String name = file.getName ();
-			String type = getType (file.getName ());
+			name = file.getName ();
+			String type = getType (name);
 			int label = 0;
-			boolean goNext = false;
 			if (name.contains ("negEx") || name.contains ("NegEx")) {
 				neg ++;
 				if (!typesOfImages.containsKey (type)) {
@@ -216,33 +216,7 @@ public static void loadDataset(Vector<Example> dataset, File dir) {
 				label = 0;
 			}
 
-			double[][][] features;
-			if (useContext) {
-				features = new double[imageHeight][imageContextWidth][unitsPerPixel];
-			} else {
-				features = new double[imageHeight][imageWidth][unitsPerPixel];
-			}
-
-			int content;
-			int i = 0,j = 0;
-			while ((content = fis.read()) != -1) {
-				if ((char) content == '0') {
-					for (int k = 0;k < unitsPerPixel;k ++) {
-						features[i][j][k] = 0;
-					}
-					j ++;
-				} else if ((char) content == '1') {
-					for (int k = 0;k < unitsPerPixel;k ++) {
-						features[i][j][k] = 1;
-					}
-					j ++;
-				} else if ((char) content == '\n') {
-					i ++;
-					j = 0;
-				}
-			}
-
-			dataset.add (new Example (features, label, name));
+			dataset.add (new Example (path + name, label, name));
 			fis.close ();
 		} catch (Exception e) { }
 	}
@@ -315,19 +289,6 @@ private static int trainANN(Vector<Example> trainset, Vector<Example> tuneset, V
 	// 	}
 	// }
 }
-
-private static Vector<Example> convertExamples(Dataset dataset) {
-	Vector<Example> examples = new Vector<Example>(dataset.getSize());
-	List<Instance> images = dataset.getImages();
-	for (Instance image : images) {
-		double[][][] features = new double[imageHeight][imageWidth][unitsPerPixel];
-		fillImageArray(features, image);
-		int label = convertCategoryStringToEnum(image.getLabel()).ordinal();
-		examples.add(new Example(features, label, "name"));
-	}
-	return examples;
-}
-
 
 private static void fillImageArray(double[][][] imageArray, Instance image) {
 	for (int x = 0; x < imageHeight; x++) {
@@ -663,21 +624,28 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 	double allTestErrors[] = new double[maxEpochs];
 
 	double mapTestErrors[] = new double[nTypes];
+	double[][][] features;
+	if (Lab3_Endemann_Sescleifer_Wolfe.useContext) {
+		features = new double[imageHeight][imageContextWidth][unitsPerPixel];
+	} else {
+		features = new double[imageHeight][imageWidth][unitsPerPixel];
+	}
 
 	for (int epoch = 1; epoch <= maxEpochs /* && trainSetErrors > 0 */; epoch++) { // Might still want to train after trainset error = 0 since we want to get all predictions on the 'right side of zero' (whereas errors defined wrt HIGHEST output).
 		permute(train); // Note: this is an IN-PLACE permute, but that is OK.
 		for (Example example : train) {
-			network.train(example.features, example.label);
+			network.train(example.getFeatures (features), example.label);
 		}
-		trainSetError = deepErrors(train, network, trainConfusion);
-		tuneSetError = deepErrors(tune, network, tuneConfusion);
-		testSetError = deepErrors(test, network, testConfusion);
+		trainSetError = deepErrors(train, network, trainConfusion, features);
+		tuneSetError = deepErrors(tune, network, tuneConfusion, features);
+		testSetError = deepErrors(test, network, testConfusion, features);
 		println("Current tune set error: " + comma((double) tuneSetError / tune.size())
 				+ ", test set error: " + comma((double) testSetError / test.size()));
 
 		allTrainErrors[epoch-1] = (double)trainSetError / train.size();
 		allTuneErrors[epoch-1] = (double)tuneSetError / tune.size();
 		allTestErrors[epoch-1] = (double)testSetError / test.size();
+		println ("[" + allTrainErrors[epoch-1] + "," + allTuneErrors[epoch-1] + "," + allTestErrors[epoch-1] + "]");
 
 		if (confusionMatricies) {
 			if(epoch % 10 == 0){
@@ -693,7 +661,7 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 			best_tuneSetError = tuneSetError;
 			testSetErrorsAtBestTune = testSetError;
 
-			deepErrors2 (test, network, mapTestErrors);
+			deepErrors2 (test, network, mapTestErrors, features);
 			System.out.println("Best testset errors by categories");
 			for (int i = 0;i < nTypes;i ++) {
 				System.out.println ("'" + typesList.get (i) + "' errors = " + (mapTestErrors[i] * 100.0) + "%");
@@ -741,7 +709,7 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
  * @param network DeepNet used to predict classes.
  * @return The number of correctly classified examples.
  */
- private static int deepErrors(Vector<Example> dataset, DeepNet network, int[][][] confusionMatrix) {
+ private static int deepErrors(Vector<Example> dataset, DeepNet network, int[][][] confusionMatrix, double[][][] features) {
 	int errors = 0;
 	for (int k = 0;k < nTypes;k ++) {
 		for (int i = 0; i < confusionMatrix[k].length; i++) {
@@ -751,7 +719,7 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 	for (Example example : dataset) {
 		String name = getType (example.name);
 		int k = typesOfImages.get (name);
-		int label = network.getLabel(example.features);
+		int label = network.getLabel(example.getFeatures (features));
 		confusionMatrix[k][label][example.label]++;
 		if (label != example.label) {
 			errors++;
@@ -760,11 +728,11 @@ private static int trainDeep(Vector<Example> train, Vector<Example> tune, Vector
 	return errors;
 }
 
- private static void deepErrors2(Vector<Example> dataset, DeepNet network, double[] mapLoss) {
+ private static void deepErrors2(Vector<Example> dataset, DeepNet network, double[] mapLoss, double[][][] features) {
 	int counts[] = new int[nTypes];
 	int errors[] = new int[nTypes];
 	for (Example example : dataset) {
-		int label = network.getLabel(example.features);
+		int label = network.getLabel(example.getFeatures (features));
 		String name = getType (example.name);
 		int type = typesOfImages.get (name);
 		counts[type] ++;
@@ -862,14 +830,50 @@ public static File ensureDirExists(String file) {
 }
 
 class Example {
-public double[][][] features;
 public int label;
-public String name;
+public String name,path;
 
-public Example(double[][][] features, int label, String name) {
-	this.features = features;
+public Example(String path, int label, String name) {
+	this.path = path;
 	this.label = label;
 	this.name = name;
+}
+
+public double[][][] getFeatures (double[][][] features) {
+	try {
+		FileInputStream fis = new FileInputStream(path);
+
+		int content;
+		int i = 0,j = 0;
+		while ((content = fis.read()) != -1) {
+			if (content == 9) {
+
+			} else if (content == 13) {
+				i ++;
+				j = 0;
+			} else {
+				String value = "" + ((char) content);
+				while ((content = fis.read()) != -1) {
+					if (content == 9) {
+						for (int k = 0;k < Lab3_Endemann_Sescleifer_Wolfe.unitsPerPixel;k ++) {
+							features[i][j][k] = Double.parseDouble (value);
+						}
+						j ++;
+						break;
+					} else if (content == 13) {
+						for (int k = 0;k < Lab3_Endemann_Sescleifer_Wolfe.unitsPerPixel;k ++) {
+							features[i][j][k] = Double.parseDouble (value);
+						}
+						i ++;
+						j = 0;
+						break;
+					}
+					value += ((char) content);
+				}
+			}
+		}
+	} catch (Exception e) {}
+	return features;
 }
 }
 
